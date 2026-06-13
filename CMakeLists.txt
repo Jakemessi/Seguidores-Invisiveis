@@ -21,9 +21,9 @@ project(SeguidoresInvisiveis VERSION 1.0.0 LANGUAGES CXX)
 #
 # To do this automatically, set the `SKYRIM_FOLDER` environment variable
 # to the path of your Skyrim Special Edition folder
-#if(DEFINED ENV{SKYRIM_FOLDER} AND IS_DIRECTORY "$ENV{SKYRIM_FOLDER}/Data")
-#    set(OUTPUT_FOLDER "$ENV{SKYRIM_FOLDER}/Data")
-#endif()
+if(DEFINED ENV{SKYRIM_FOLDER} AND IS_DIRECTORY "$ENV{SKYRIM_FOLDER}/Data")
+    set(OUTPUT_FOLDER2 "$ENV{SKYRIM_FOLDER}/Data/SKSE/Plugins")
+endif()
 
 # If you're using Mod Organizer 2 or Vortex, you might want this to go inside
 # of your "mods" folder, inside of a subfolder named "<your mod>".
@@ -51,14 +51,18 @@ if(DEFINED OUTPUT_FOLDER)
 
     # Copy the SKSE plugin .dll files into the SKSE/Plugins/ folder
     set(DLL_FOLDER "${OUTPUT_FOLDER}")
+    set(DLL_FOLDER2 "${OUTPUT_FOLDER2}")
 
     message(STATUS "SKSE plugin output folder: ${DLL_FOLDER}")
+    message(STATUS "SKSE plugin output folder: ${DLL_FOLDER2}")
 
     add_custom_command(
         TARGET "${PROJECT_NAME}"
         POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${DLL_FOLDER}"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${PROJECT_NAME}>" "${DLL_FOLDER}/$<TARGET_FILE_NAME:${PROJECT_NAME}>"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${DLL_FOLDER2}"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${PROJECT_NAME}>" "${DLL_FOLDER2}/$<TARGET_FILE_NAME:${PROJECT_NAME}>"
         VERBATIM
     )
 
@@ -68,6 +72,7 @@ if(DEFINED OUTPUT_FOLDER)
             TARGET "${PROJECT_NAME}"
             POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_PDB_FILE:${PROJECT_NAME}>" "${DLL_FOLDER}/$<TARGET_PDB_FILE_NAME:${PROJECT_NAME}>"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_PDB_FILE:${PROJECT_NAME}>" "${DLL_FOLDER2}/$<TARGET_PDB_FILE_NAME:${PROJECT_NAME}>"
             VERBATIM
         )
     endif()
