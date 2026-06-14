@@ -6,12 +6,6 @@ Meu primeiro pulgin SKSE para Skyrim Special Edition
 
 - [Oque este plugin faz?](#Oque-este-plugin-faz)
 - [CommonLibSSE NG](#commonlibsse-ng)
-- [Requirements](#requirements)
-  - [Opening the project](#opening-the-project)
-- [Project setup](#project-setup)
-  - [Finding Your "`mods`" Folder](#finding-your-mods-folder)
-- [Setup your own repository](#setup-your-own-repository)
-- [Sharing is Caring](#sharing-is-caring)
 
 # Oque este plugin faz?
 
