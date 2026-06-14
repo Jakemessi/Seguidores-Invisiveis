@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.21)
 
 # Nome do projeto (será o nome da sua DLL)
 project(SeguidoresInvisiveis VERSION 1.0.0 LANGUAGES CXX)
+set(AUTHOR "Huehuller")
+set(PLUGIN_VERSION_AUTHOR "Jakemessi")
+
 
 # Verifica se a variável de ambiente do Skyrim existe para definir a pasta secundária
 if(DEFINED ENV{SKYRIM_FOLDER} AND IS_DIRECTORY "$ENV{SKYRIM_FOLDER}/Data")

@@ -12,16 +12,13 @@ namespace SeguidoresInvisiveis
         }
     }
 
-    // Função que aplica ou remove o estado furtivo absoluto nos seguidores
     void SetFollowersUndetectable(bool enable)
     {
         auto* processLists = RE::ProcessLists::GetSingleton();
         if (!processLists) {
-            Print("[SI] ERRO: ProcessLists não encontrado");
+            Print("[SI] ERRO: ProcessLists nao encontrado");
             return;
         }
-
-        std::uint32_t followerCount = 0;
 
         for (auto& handle : processLists->highActorHandles) {
             auto* actor = handle.get().get();
@@ -29,23 +26,16 @@ namespace SeguidoresInvisiveis
                 continue;
             }
 
-            followerCount++;
             const char* name = actor->GetName();
 
             if (enable) {
-                // Modifica variáveis nativas do grafo de animação/IA para aplicar invisibilidade e silêncio absoluto
                 actor->SetGraphVariableFloat("Invisibility", 1.0f);
                 actor->SetGraphVariableFloat("Muffle", 1.0f);
-                
-                // Força inimigos que estavam mirando no seguidor a perderem o alvo imediatamente
                 actor->StopCombat();
-
                 Print(fmt::format("[SI] {} entrou em modo furtivo absoluto.", name ? name : "<sem nome>"));
             } else {
-                // Restaura os valores originais do grafo do seguidor
                 actor->SetGraphVariableFloat("Invisibility", 0.0f);
                 actor->SetGraphVariableFloat("Muffle", 0.0f);
-
                 Print(fmt::format("[SI] {} voltou ao estado normal.", name ? name : "<sem nome>"));
             }
         }
@@ -53,96 +43,106 @@ namespace SeguidoresInvisiveis
 }
 
 // =======================================================
-// 1. EVENT HANDLER DE ANIMAÇÃO
+// 1. EVENT HANDLER DE INPUT (DIPARA QUANDO SNEAK MUDA)
 // =======================================================
-class SneakEventHandler : public RE::BSTEventSink<RE::BSAnimationGraphEvent>
+class InputEventHandler : public RE::BSTEventSink<RE::InputEvent*>
 {
 private:
-    bool _isPlayerSneaking = false; // Controle interno para evitar disparos repetidos da mesma animação
+    bool _isPlayerSneaking = false;
 
 public:
-    RE::BSEventNotifyControl ProcessEvent(
-        const RE::BSAnimationGraphEvent* event,
-        RE::BSTEventSource<RE::BSAnimationGraphEvent>*) override
+        RE::BSEventNotifyControl ProcessEvent(
+        RE::InputEvent* const* eventPtr,
+        RE::BSTEventSource<RE::InputEvent*>*) override
     {
-        if (!event || event->tag.empty()) {
+        if (!eventPtr) return RE::BSEventNotifyControl::kContinue;
+
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (!player || !RE::UI::GetSingleton() || RE::UI::GetSingleton()->GameIsPaused()) {
             return RE::BSEventNotifyControl::kContinue;
         }
 
-        std::string tag = event->tag.c_str();
+        for (auto* event = *eventPtr; event; event = event->next) {
+            // Chamamos HasIDCode() diretamente do 'event' (InputEvent)
+            if (event->GetEventType() != RE::INPUT_EVENT_TYPE::kButton || !event->HasIDCode()) {
+                continue;
+            }
 
-        // Detecta entrada no modo Sneak (Filtro universal para 'tailsneakidle', 'SneakStart', etc.)
-        if (!_isPlayerSneaking && (tag.find("sneak") != std::string::npos)) {
-            _isPlayerSneaking = true;
-            SeguidoresInvisiveis::Print(fmt::format("[SI] Jogador agachou (Tag: {})", tag));
-            SeguidoresInvisiveis::SetFollowersUndetectable(true);
-        }
-        // Detecta saída do modo Sneak (Filtro universal para 'tailmtidle', 'SneakStop', 'mtidle', 'walkStart')
-        else if (_isPlayerSneaking && (tag.find("mtidle") != std::string::npos || tag.find("walk") != std::string::npos || tag == "SneakStop")) {
-            _isPlayerSneaking = false;
-            SeguidoresInvisiveis::Print(fmt::format("[SI] Jogador levantou (Tag: {})", tag));
-            SeguidoresInvisiveis::SetFollowersUndetectable(false);
+            auto* buttonEvent = event->AsButtonEvent();
+            if (!buttonEvent) {
+                continue;
+            }
+
+            // Captura o nome da acao associada ao botao
+            const auto& userEvent = buttonEvent->QUserEvent();
+
+            // "Sneak" e o ID nativo do controle/teclado para agachar no Skyrim
+            if (userEvent == "Sneak" && buttonEvent->IsDown()) {
+                
+                // O estado do jogo atualiza logo apos o input, verificamos o inverso atual
+                bool currentlySneaking = player->IsSneaking();
+                
+                // Se não estava agachado, significa que agora vai agachar
+                if (!currentlySneaking && !_isPlayerSneaking) {
+                    _isPlayerSneaking = true;
+                    SeguidoresInvisiveis::Print("[SI] Jogador AGACHOU.");
+                    SeguidoresInvisiveis::SetFollowersUndetectable(true);
+                } 
+                // Se ja estava agachado, significa que agora vai levantar
+                else if (currentlySneaking && _isPlayerSneaking) {
+                    _isPlayerSneaking = false;
+                    SeguidoresInvisiveis::Print("[SI] Jogador LEVANTOU.");
+                    SeguidoresInvisiveis::SetFollowersUndetectable(false);
+                }
+            }
         }
 
         return RE::BSEventNotifyControl::kContinue;
     }
 };
 
-static SneakEventHandler g_sneakHandler;
+static InputEventHandler g_inputHandler;
 
 // =======================================================
-// 2. REGISTRO DO SINK
+// 2. REGISTRO SEGURO DO HANDLER DE INPUT
 // =======================================================
-void RegisterAnimationSink()
+void RegisterInputSink()
 {
-    auto* player = RE::PlayerCharacter::GetSingleton();
-    if (!player) {
-        SeguidoresInvisiveis::Print("[SI ERRO] Player não encontrado");
-        return;
+    auto* inputManager = RE::BSInputDeviceManager::GetSingleton();
+    if (inputManager) {
+        inputManager->AddEventSink(&g_inputHandler);
+        SeguidoresInvisiveis::Print("[SI OK] Rastreamento de botoes ativado com sucesso!");
+    } else {
+        SeguidoresInvisiveis::Print("[SI ERRO] Falha ao acessar gerenciador de input.");
     }
-
-    player->RemoveAnimationGraphEventSink(&g_sneakHandler);
-    player->AddAnimationGraphEventSink(&g_sneakHandler);
-
-    SeguidoresInvisiveis::Print("[SI OK] AnimationGraphEventSink registrado no Player");
 }
 
 // =======================================================
 // 3. MESSAGING HANDLER SKSE
 // =======================================================
-SKSEPluginLoad(const SKSE::LoadInterface* skse)
+void MessageHandler(SKSE::MessagingInterface::Message* message)
+{
+    switch (message->type)
+    {
+        case SKSE::MessagingInterface::kDataLoaded:
+            SeguidoresInvisiveis::Print("[SI SKSE] Mod carregado. Iniciando escuta de botoes...");
+            RegisterInputSink(); // Registra uma unica vez aqui, o InputManager e global e permanente
+            break;
+
+        default:
+            break;
+    }
+}
+
+// Ponto de entrada padrao do SKSE
+extern "C" [[nodiscard]] __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* skse)
 {
     SKSE::Init(skse);
 
-    SKSE::GetMessagingInterface()->RegisterListener(
-        [](SKSE::MessagingInterface::Message* message)
-        {
-            switch (message->type)
-            {
-                case SKSE::MessagingInterface::kDataLoaded:
-                {
-                    SeguidoresInvisiveis::Print("[SI SKSE] DataLoaded (menu)");
-                    break;
-                }
-
-                case SKSE::MessagingInterface::kNewGame:
-                {
-                    SeguidoresInvisiveis::Print("[SI SKSE] NewGame detectado");
-                    RegisterAnimationSink();
-                    break;
-                }
-
-                case SKSE::MessagingInterface::kPostLoadGame:
-                {
-                    SeguidoresInvisiveis::Print("[SI SKSE] Save carregado (PostLoadGame)");
-                    RegisterAnimationSink();
-                    break;
-                }
-
-                default:
-                    break;
-            }
-        });
+    auto* messaging = SKSE::GetMessagingInterface();
+    if (messaging) {
+        messaging->RegisterListener(MessageHandler);
+    }
 
     return true;
 }
