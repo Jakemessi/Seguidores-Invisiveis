@@ -2,7 +2,6 @@
 #include <SKSE/SKSE.h>
 #include <functional>
 
-
 void Print(const std::string& msg)
 {
     if (auto* console = RE::ConsoleLog::GetSingleton()) {
@@ -10,6 +9,8 @@ void Print(const std::string& msg)
     }
 }
 
+bool g_stealthEnabled = false;
+float g_sneakBoost = 100.0f;
 
 //Busca os seguidores
 bool IsFollower(RE::Actor* actor)
@@ -42,13 +43,17 @@ void ForEachFollower(const std::function<void(RE::Actor*)>& callback)
 
 void EnableFollowerStealth()
 {
+    if (g_stealthEnabled) {
+        return;
+    }
+
+    g_stealthEnabled = true;
 
     ForEachFollower([](RE::Actor* actor)
     {
         actor->AsActorValueOwner()->ModActorValue(
             RE::ActorValue::kSneak,
-            100.0f);
-
+            g_sneakBoost);
 
         Print(std::string(actor->GetName()) +
               " recebeu boost de sneak");
@@ -57,7 +62,21 @@ void EnableFollowerStealth()
 
 void DisableFollowerStealth()
 {
-   
+    if (!g_stealthEnabled) {
+        return;
+    }
+
+    g_stealthEnabled = false;
+
+    ForEachFollower([](RE::Actor* actor)
+    {
+        actor->AsActorValueOwner()->ModActorValue(
+            RE::ActorValue::kSneak,
+            -g_sneakBoost);
+
+        Print(std::string(actor->GetName()) +
+              " perdeu boost de sneak");
+    });
 }
 
 class AnimationEventSink :
@@ -87,14 +106,15 @@ public:
 
         const std::string tag = event->tag.c_str();
 
-        if (tag == "tailSneakIdle") {
+        if (tag == "tailSneakIdle" && !g_stealthEnabled) {
             Print("sneak detectado");
             EnableFollowerStealth();
         }
 
-        /* Será feito depois, mas aqui seria o local para detectar o fim do sneak e chamar DisableFollowerStealth()
-        else if (...)
-        */
+        else if (tag == "tailMTIdle" && g_stealthEnabled) {
+            Print("saindo de sneak");
+            DisableFollowerStealth();
+        }
         return RE::BSEventNotifyControl::kContinue;
     }
 };
