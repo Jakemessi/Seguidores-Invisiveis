@@ -3,6 +3,7 @@
 # If you want to add one of these files to git, either remove the matching line from this
 # file or force add the file/folder into git using `git -f add [path]`
 
+
 # IDE / text editor profile files
 .idea
 .vs
@@ -14,6 +15,5 @@ build
 cmake-build*
 *.dll
 *.pdb
-
 # Skyrim archive files
 *.bsa

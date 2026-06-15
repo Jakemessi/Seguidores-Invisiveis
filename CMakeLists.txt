@@ -1,42 +1,37 @@
-# Configuração mínima do CMake
+# This file configures the "build" of this SKSE plugin
+# - how to compile the C++ plugin (in addition to settings found in CMakePresets.json)
+# - where to output the resulting .dll file
+
+# It's recommended to set a minimum CMake version.
+# If you use CMake features from higher versions, update this to match.
 cmake_minimum_required(VERSION 3.21)
 
-# Nome do projeto (será o nome da sua DLL)
+# [BEGIN set_project_name]
+# Set your project name. This will be the name of your SKSE .dll file.
 project(SeguidoresInvisiveis VERSION 1.0.0 LANGUAGES CXX)
-set(AUTHOR "Huehuller")
-set(PLUGIN_VERSION_AUTHOR "Jakemessi")
+
+# [END set_project_name]
 
 
-# Verifica se a variável de ambiente do Skyrim existe para definir a pasta secundária
-if(DEFINED ENV{SKYRIM_FOLDER} AND IS_DIRECTORY "$ENV{SKYRIM_FOLDER}/Data")
-    set(OUTPUT_FOLDER2 "$ENV{SKYRIM_FOLDER}/Data/SKSE/Plugins")
-endif()
+# Otherwise, you can set OUTPUT_FOLDER to any place you'd like :)
+set(OUTPUT_FOLDER "C:\\Users\\Huehuller\\Documents\\VSCode Projects\\Seguidores-Invisiveis\\")
 
-# ==========================================
-# CONFIGURAÇÃO DO PLUGIN
-# ==========================================
-
-#   Encontra o CommonLibSSE usando CONFIG
+# Setup your SKSE plugin as an SKSE plugin!
 find_package(CommonLibSSE CONFIG REQUIRED)
+add_commonlibsse_plugin(${PROJECT_NAME} SOURCES plugin.cpp) # <--- specifies plugin.cpp
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23) # <--- use C++23 standard
+target_precompile_headers(${PROJECT_NAME} PRIVATE PCH.h) # <--- PCH.h is required!
 
-
-add_commonlibsse_plugin(${PROJECT_NAME} SOURCES plugin.cpp)
-
-#   LINKA as bibliotecas ao projeto que acabou de ser criado
-target_link_libraries(${PROJECT_NAME} PUBLIC CommonLibSSE::CommonLibSSE)
-
-#   Define os padrões adicionais do C++23 e Cabeçalhos Pré-compilados
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23) 
-target_precompile_headers(${PROJECT_NAME} PRIVATE PCH.h)
-
-
-
-set(OUTPUT_FOLDER "C:/Users/Huehuller/Documents/VSCode Projects/Seguidores Invisiveis/dll")
-
-# Só ativa a automação de cópia se pelo menos a pasta padrão existir
+# When your SKSE .dll is compiled, this will automatically copy the .dll into your mods folder.
+# Only works if you configure DEPLOY_ROOT above (or set the SKYRIM_MODS_FOLDER environment variable)
 if(DEFINED OUTPUT_FOLDER)
-    set(DLL_FOLDER "${OUTPUT_FOLDER}")
-    message(STATUS "SKSE plugin output folder 1: ${DLL_FOLDER}")
+    # If you specify an <OUTPUT_FOLDER> (including via environment variables)
+    # then we'll copy your mod files into Skyrim or a mod manager for you!
+
+    # Copy the SKSE plugin .dll files into the SKSE/Plugins/ folder
+    set(DLL_FOLDER "${OUTPUT_FOLDER}/SKSE/Plugins")
+
+    message(STATUS "SKSE plugin output folder: ${DLL_FOLDER}")
 
     add_custom_command(
         TARGET "${PROJECT_NAME}"
@@ -46,34 +41,12 @@ if(DEFINED OUTPUT_FOLDER)
         VERBATIM
     )
 
+    # If you perform a "Debug" build, also copy .pdb file (for debug symbols)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         add_custom_command(
             TARGET "${PROJECT_NAME}"
             POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_PDB_FILE:${PROJECT_NAME}>" "${DLL_FOLDER}/$<TARGET_PDB_FILE_NAME:${PROJECT_NAME}>"
-            VERBATIM
-        )
-    endif()
-endif()
-
-# Copiar para a pasta do Skyrim APENAS se a variável de ambiente realmente existir
-if(DEFINED OUTPUT_FOLDER2)
-    set(DLL_FOLDER2 "${OUTPUT_FOLDER2}")
-    message(STATUS "SKSE plugin output folder 2: ${DLL_FOLDER2}")
-
-    add_custom_command(
-        TARGET "${PROJECT_NAME}"
-        POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "${DLL_FOLDER2}"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${PROJECT_NAME}>" "${DLL_FOLDER2}/$<TARGET_FILE_NAME:${PROJECT_NAME}>"
-        VERBATIM
-    )
-
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_custom_command(
-            TARGET "${PROJECT_NAME}"
-            POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_PDB_FILE:${PROJECT_NAME}>" "${DLL_FOLDER2}/$<TARGET_PDB_FILE_NAME:${PROJECT_NAME}>"
             VERBATIM
         )
     endif()

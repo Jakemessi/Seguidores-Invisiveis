@@ -1,0 +1,12 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Mover plugin",
+            "type": "shell",
+            "command": "${workspaceFolder}/mover.bat",
+            "group": "build",
+            "problemMatcher": []
+        }
+    ]
+}
