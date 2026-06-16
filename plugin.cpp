@@ -58,14 +58,14 @@ void EnableFollowerStealth()
 
         Print(std::string(actor->GetName()) +
               " recebeu boost de sneak");
-        
+        /*Removido por entrar em conflito com sneak
         actor->AsActorValueOwner()->ModActorValue(
             RE::ActorValue::kMovementNoiseMult,
             -g_NoiseMod);
 
         Print(std::string(actor->GetName()) +
               " não faz barulho");
-        
+        */
         actor->AsActorValueOwner()->ModActorValue(
             RE::ActorValue::kInvisibility,
             1.0f);
@@ -92,14 +92,14 @@ void DisableFollowerStealth()
 
         Print(std::string(actor->GetName()) +
               " perdeu o boost de sneak");
-
+        /*Removido por entrar em conflito com sneak
         actor->AsActorValueOwner()->ModActorValue(
             RE::ActorValue::kMovementNoiseMult,
             g_NoiseMod);
 
         Print(std::string(actor->GetName()) +
               " voltou a fazer barulho");
-        
+        */
         actor->AsActorValueOwner()->ModActorValue(
             RE::ActorValue::kInvisibility,
             -1.0f);

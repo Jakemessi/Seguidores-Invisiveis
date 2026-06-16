@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.21)
 
 
 # Set your project name. This will be the name of your SKSE .dll file.
-project(InvisibilityAffectsFollowersToo VERSION 1.7.0 LANGUAGES CXX)
+project(InvisibilityAffectsFollowersToo VERSION 1.7.4 LANGUAGES CXX)
 
 set(SKSSE_PLUGIN_AUTHOR "Huehuller")
 set(SKSSE_PLUGIN_EMAIL "nanaveine@gmail.com")
