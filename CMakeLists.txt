@@ -6,11 +6,12 @@
 # If you use CMake features from higher versions, update this to match.
 cmake_minimum_required(VERSION 3.21)
 
-# [BEGIN set_project_name]
-# Set your project name. This will be the name of your SKSE .dll file.
-project(SeguidoresInvisiveis VERSION 1.0.0 LANGUAGES CXX)
 
-# [END set_project_name]
+# Set your project name. This will be the name of your SKSE .dll file.
+project(InvisibilityAffectsFollowersToo VERSION 1.7.0 LANGUAGES CXX)
+
+set(SKSSE_PLUGIN_AUTHOR "Huehuller")
+set(SKSSE_PLUGIN_EMAIL "nanaveine@gmail.com")
 
 
 # Otherwise, you can set OUTPUT_FOLDER to any place you'd like :)
@@ -18,7 +19,11 @@ set(OUTPUT_FOLDER "C:\\Users\\Huehuller\\Documents\\VSCode Projects\\Seguidores-
 
 # Setup your SKSE plugin as an SKSE plugin!
 find_package(CommonLibSSE CONFIG REQUIRED)
-add_commonlibsse_plugin(${PROJECT_NAME} SOURCES plugin.cpp) # <--- specifies plugin.cpp
+add_commonlibsse_plugin(${PROJECT_NAME}
+    AUTHOR ${SKSSE_PLUGIN_AUTHOR}
+    EMAIL ${SKSSE_PLUGIN_EMAIL}
+    SOURCES plugin.cpp  # <--- specifies plugin.cpp
+)
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23) # <--- use C++23 standard
 target_precompile_headers(${PROJECT_NAME} PRIVATE PCH.h) # <--- PCH.h is required!
 

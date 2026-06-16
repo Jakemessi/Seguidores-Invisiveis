@@ -10,7 +10,8 @@ void Print(const std::string& msg)
 }
 
 bool g_stealthEnabled = false;
-float g_sneakBoost = 100.0f;
+float g_sneakBoost = 1000.0f;
+float g_NoiseMod = 1.0f;
 
 //Busca os seguidores
 bool IsFollower(RE::Actor* actor)
@@ -57,6 +58,21 @@ void EnableFollowerStealth()
 
         Print(std::string(actor->GetName()) +
               " recebeu boost de sneak");
+        
+        actor->AsActorValueOwner()->ModActorValue(
+            RE::ActorValue::kMovementNoiseMult,
+            -g_NoiseMod);
+
+        Print(std::string(actor->GetName()) +
+              " não faz barulho");
+        
+        actor->AsActorValueOwner()->ModActorValue(
+            RE::ActorValue::kInvisibility,
+            1.0f);
+
+        Print(std::string(actor->GetName()) +
+              " está invisível");
+        
     });
 }
 
@@ -75,7 +91,22 @@ void DisableFollowerStealth()
             -g_sneakBoost);
 
         Print(std::string(actor->GetName()) +
-              " perdeu boost de sneak");
+              " perdeu o boost de sneak");
+
+        actor->AsActorValueOwner()->ModActorValue(
+            RE::ActorValue::kMovementNoiseMult,
+            g_NoiseMod);
+
+        Print(std::string(actor->GetName()) +
+              " voltou a fazer barulho");
+        
+        actor->AsActorValueOwner()->ModActorValue(
+            RE::ActorValue::kInvisibility,
+            -1.0f);
+
+        Print(std::string(actor->GetName()) +
+              " voltou a ser visível");
+        
     });
 }
 
