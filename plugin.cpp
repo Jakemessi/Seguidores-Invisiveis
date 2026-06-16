@@ -1,7 +1,10 @@
-#include <RE/Skyrim.h>
-#include <SKSE/SKSE.h>
 #include <functional>
+#include <SKSE/Logger.h>
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/spdlog.h>
+#include <filesystem>
 
+//Para printar no console
 void Print(const std::string& msg)
 {
     if (auto* console = RE::ConsoleLog::GetSingleton()) {
@@ -56,22 +59,22 @@ void EnableFollowerStealth()
             RE::ActorValue::kSneak,
             g_sneakBoost);
 
-        Print(std::string(actor->GetName()) +
-              " recebeu boost de sneak");
+        //Print(std::string(actor->GetName()) +" recebeu boost de sneak");
+        logger::info("{} recebeu boost de sneak", actor->GetName());
         /*Removido por entrar em conflito com sneak
         actor->AsActorValueOwner()->ModActorValue(
             RE::ActorValue::kMovementNoiseMult,
             -g_NoiseMod);
 
-        Print(std::string(actor->GetName()) +
-              " não faz barulho");
+        //Print(std::string(actor->GetName()) + " não faz barulho");
+        logger::info("{} não faz barulho", actor->GetName());
         */
         actor->AsActorValueOwner()->ModActorValue(
             RE::ActorValue::kInvisibility,
             1.0f);
 
-        Print(std::string(actor->GetName()) +
-              " está invisível");
+        //Print(std::string(actor->GetName()) + " está invisível");
+        logger::info("{} está invisível", actor->GetName());
         
     });
 }
@@ -90,22 +93,24 @@ void DisableFollowerStealth()
             RE::ActorValue::kSneak,
             -g_sneakBoost);
 
-        Print(std::string(actor->GetName()) +
-              " perdeu o boost de sneak");
+        //Print(std::string(actor->GetName()) + " perdeu o boost de sneak");
+        logger::info("{} perdeu o boost de sneak", actor->GetName());
+
         /*Removido por entrar em conflito com sneak
         actor->AsActorValueOwner()->ModActorValue(
             RE::ActorValue::kMovementNoiseMult,
             g_NoiseMod);
-
-        Print(std::string(actor->GetName()) +
-              " voltou a fazer barulho");
+        //Print(std::string(actor->GetName()) + " voltou a fazer barulho");
+        logger::info("{} voltou a fazer barulho", actor->GetName());
+        //
         */
+       
         actor->AsActorValueOwner()->ModActorValue(
             RE::ActorValue::kInvisibility,
             -1.0f);
 
-        Print(std::string(actor->GetName()) +
-              " voltou a ser visível");
+        //Print(std::string(actor->GetName()) + " voltou a ser visível");
+        logger::info("{} voltou a ser visível", actor->GetName());
         
     });
 }
@@ -138,12 +143,14 @@ public:
         const std::string tag = event->tag.c_str();
 
         if (tag == "tailSneakIdle" && !g_stealthEnabled) {
-            Print("sneak detectado");
+            //Print("sneak detectado");
+            logger::info("sneak detectado");
             EnableFollowerStealth();
         }
 
         else if (tag == "tailMTIdle" && g_stealthEnabled) {
-            Print("saindo de sneak");
+            //Print("saindo de sneak");
+            logger::info("saindo de sneak");
             DisableFollowerStealth();
         }
         return RE::BSEventNotifyControl::kContinue;
@@ -155,14 +162,17 @@ void RegisterAnimationEvents()
     auto* player = RE::PlayerCharacter::GetSingleton();
 
     if (!player) {
-        Print("Player não encontrado");
+        //Print("Player não encontrado");
+        logger::error("Player não encontrado");
         return;
     }
 
     player->AddAnimationGraphEventSink(
         AnimationEventSink::GetSingleton());
 
-    Print("AnimationGraphEvent registrado");
+    //Print("AnimationGraphEvent registrado");
+    logger::info("AnimationGraphEvent registrado");
+    
 }
 
 //Tentativa de aplicar a flag
@@ -181,15 +191,55 @@ void SetFollowerStealth(RE::Actor* actor, bool enable)
 }
 */
 
+//Para a criação de logs
+void InitializeLogging()
+{
+    //Print("Inicializando logger");
+    auto path = logger::log_directory();
+
+    if (!path) {
+        Print("logger::log_directory() retornou nullptr");
+        return;
+    }
+
+    //Print(path->string());
+	
+    *path /= "InvisibilityAffectsFollowersToo.log";
+
+    auto sink =
+        std::make_shared<spdlog::sinks::basic_file_sink_mt>(
+            path->string(), true);
+
+    auto log =
+        std::make_shared<spdlog::logger>(
+            "global log",
+            std::move(sink));
+
+    log->set_level(spdlog::level::debug);
+    log->flush_on(spdlog::level::info);
+
+    spdlog::set_default_logger(std::move(log));
+    spdlog::set_pattern("[%H:%M:%S] [%l] %v");
+    logger::info("Logger Made In Arstotzka");
+    logger::info("Logger inicializado");
+}
+
 SKSEPluginLoad(const SKSE::LoadInterface* skse)
 {
+    
     SKSE::Init(skse);
-
-    SKSE::GetMessagingInterface()->RegisterListener(
-        [](SKSE::MessagingInterface::Message* message)
+    
+    SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* message)
         {
+            if (message->type == SKSE::MessagingInterface::kDataLoaded) {
+                InitializeLogging();
+                //Print("Tentou iniciar Logger");
+                //Print("Plugin carregado no menu principal");
+                logger::info("Plugin carregado no menu principal");
+            }
             if (message->type == SKSE::MessagingInterface::kPostLoadGame) {
-                Print("SeguidoresInvisiveis carregado");
+                //Print("InvisibilityAffectsFollowersToo carregado");
+                logger::info("InvisibilityAffectsFollowersToo carregado");
                 RegisterAnimationEvents();
             }
         });
