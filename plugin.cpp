@@ -286,7 +286,53 @@ public:
         static AnimationEventSink singleton;
         return std::addressof(singleton);
     }
+    
+    RE::BSEventNotifyControl ProcessEvent(
+        const RE::BSAnimationGraphEvent* event,
+        RE::BSTEventSource<RE::BSAnimationGraphEvent>*)
+        override
+    {
+        if (!event) {
+            return RE::BSEventNotifyControl::kContinue;
+        }
 
+        auto* player = RE::PlayerCharacter::GetSingleton();
+
+        if (!player || event->holder != player) {
+            return RE::BSEventNotifyControl::kContinue;
+        }
+
+        const std::string tag = event->tag.c_str();
+
+        if (p_debug && g_loggerIniciado) {
+            LogInfo(
+                "Evento de animacao recebido: " + tag,
+                "Animation event received: " + tag);
+        }
+
+        const bool estaAgachado = player->IsSneaking();
+
+        if (p_debug && g_loggerIniciado) {
+            LogInfo(
+                "Estado do player: IsSneaking=" + std::string(estaAgachado ? "true" : "false") + ", g_stealthAtivado=" + std::string(g_stealthAtivado ? "true" : "false"),
+                "Player state: IsSneaking=" + std::string(estaAgachado ? "true" : "false") + ", g_stealthAtivado=" + std::string(g_stealthAtivado ? "true" : "false")
+            );
+        }
+
+        if (estaAgachado && !g_stealthAtivado) {
+            LogInfo("Sneak detectado", "Sneak detected");
+            AtivarEfeitosSeguidores();
+        }
+        else if (!estaAgachado && g_stealthAtivado) {
+            LogInfo("Saindo de sneak", "Exiting sneak");
+            DesativarEfeitosSeguidores();
+        }
+
+        return RE::BSEventNotifyControl::kContinue;
+    }
+    
+    /*
+    //Por meio de animação
     RE::BSEventNotifyControl ProcessEvent(
         const RE::BSAnimationGraphEvent* event,
         RE::BSTEventSource<RE::BSAnimationGraphEvent>*)
@@ -311,16 +357,17 @@ public:
         }
 
         if (tag == "tailSneakIdle" && !g_stealthAtivado) {
-            LogInfo("sneak detectado", "sneak detected");
+            LogInfo("Sneak detectado", "Sneak detected");
             AtivarEfeitosSeguidores();
         }
         else if (tag == "tailMTIdle" && g_stealthAtivado) {
-            LogInfo("saindo de sneak", "exiting sneak");
+            LogInfo("Saindo de sneak", "Exiting sneak");
             DesativarEfeitosSeguidores();
         }
 
         return RE::BSEventNotifyControl::kContinue;
     }
+    */
 };
 
 void RegisterAnimationEvents()
