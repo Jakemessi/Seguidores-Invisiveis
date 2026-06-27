@@ -1,3 +1,5 @@
+#include "Version.h"
+
 #include <functional>
 #include <string>
 #include <vector>
@@ -19,7 +21,7 @@ bool VaiBrasa = false;
 bool g_loggerIniciado = false;
 bool g_stealthAtivado = false;
 bool g_EventosAnimacaoRegistrados = false;
-bool p_debug = true;
+bool p_debug = false;
 
 // Valores aplicados pelo plugin
 float g_sneakBoost = 1000.0f;
@@ -438,7 +440,7 @@ void IniciarLog()
         return;
     }
 
-    logger::info("Logger Made In Arstotzka");
+    logger::info("{} v{} - Logger Made In Arstotzka", PLUGIN_NAME, PLUGIN_VERSION_STRING);
 
     if (VaiBrasa) {
         logger::info("Logger inicializado");
@@ -479,8 +481,8 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse)
             IniciarLog();
 
             LogInfo(
-                "Plugin carregado no menu principal",
-                "Plugin loaded in main menu");
+                std::string(PLUGIN_NAME) + " v" + PLUGIN_VERSION_STRING + " carregado no menu principal",
+                std::string(PLUGIN_NAME) + " v" + PLUGIN_VERSION_STRING + " loaded in main menu");
             break;
 
         case SKSE::MessagingInterface::kPostLoadGame:
