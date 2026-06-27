@@ -4,7 +4,7 @@
         {
             "label": "Mover plugin",
             "type": "shell",
-            "command": "${workspaceFolder}/mover.bat",
+            "command": "${workspaceFolder}/scripts/mover.bat",
             "group": "build",
             "problemMatcher": []
         }

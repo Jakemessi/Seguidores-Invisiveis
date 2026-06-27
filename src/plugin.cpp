@@ -27,6 +27,11 @@ bool p_debug = false;
 float g_sneakBoost = 1000.0f;
 float g_invisibilityBoost = 1.0f;
 
+// Camada do Actor Value usada pelo plugin.
+// kTemporary indica que o boost deve ser tratado como modificador temporário,
+// em vez de uma alteração permanente no valor do ator, assim sendo até mais fácil de remover.
+constexpr RE::ACTOR_VALUE_MODIFIER g_modificadorActorValue = RE::ACTOR_VALUE_MODIFIER::kTemporary;
+
 // std::vector é uma lista dinâmica: diferente de um array comum, ele pode crescer
 // ou diminuir durante a execução. Aqui ele guarda vários ActorHandle, ou seja,
 // referências seguras para os seguidores que receberam o efeito do plugin.
@@ -177,7 +182,62 @@ void ForEachFollower(const std::function<void(RE::Actor*, const RE::ActorHandle&
 // ------------------------------------------------------------
 // Aplicação e remoção dos efeitos
 // ------------------------------------------------------------
+// Métodos de aplicação e remoção de AVs Temporários
+bool AplicarEfeitos(RE::Actor* actor)
+{
+    if (!actor) {
+        return false;
+    }
 
+    auto* avOwner = actor->AsActorValueOwner();
+
+    if (!avOwner) {
+        return false;
+    }
+
+    avOwner->RestoreActorValue(
+        g_modificadorActorValue,
+        RE::ActorValue::kSneak,
+        g_sneakBoost
+    );
+
+    avOwner->RestoreActorValue(
+        g_modificadorActorValue,
+        RE::ActorValue::kInvisibility,
+        g_invisibilityBoost
+    );
+
+    return true;
+}
+
+bool RemoverEfeitos(RE::Actor* actor)
+{
+    if (!actor) {
+        return false;
+    }
+
+    auto* avOwner = actor->AsActorValueOwner();
+
+    if (!avOwner) {
+        return false;
+    }
+
+    avOwner->RestoreActorValue(
+        g_modificadorActorValue,
+        RE::ActorValue::kSneak,
+        -g_sneakBoost
+    );
+
+    avOwner->RestoreActorValue(
+        g_modificadorActorValue,
+        RE::ActorValue::kInvisibility,
+        -g_invisibilityBoost
+    );
+
+    return true;
+}
+
+/* Método de aplicação e remoção de AVs Permanentes
 bool AplicarEfeitos(RE::Actor* actor)
 {
     if (!actor) {
@@ -213,6 +273,7 @@ bool RemoverEfeitos(RE::Actor* actor)
 
     return true;
 }
+*/
 
 void AtivarEfeitosSeguidores()
 {
