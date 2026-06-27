@@ -1,15 +1,40 @@
 #include <functional>
+#include <string>
+#include <vector>
+#include <filesystem>
+
 #include <SKSE/Logger.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
-#include <filesystem>
+#include <memory>
 
 //Para poder mudar log para português ou inglês
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 #include <Windows.h>
 bool VaiBrasa = false;
-// 
 
-//Para printar no console
+// Estado do plugin
+bool g_loggerIniciado = false;
+bool g_stealthAtivado = false;
+bool g_EventosAnimacaoRegistrados = false;
+bool p_debug = false
+
+// Valores aplicados pelo plugin
+float g_sneakBoost = 1000.0f;
+float g_invisibilityBoost = 1.0f;
+
+// std::vector é uma lista dinâmica: diferente de um array comum, ele pode crescer
+// ou diminuir durante a execução. Aqui ele guarda vários ActorHandle, ou seja,
+// referências seguras para os seguidores que receberam o efeito do plugin.
+std::vector<RE::ActorHandle> g_seguidores;
+
+
+// ------------------------------------------------------------
+// Utilidades de log / console
+// ------------------------------------------------------------
+
 void Print(const std::string& msg)
 {
     if (auto* console = RE::ConsoleLog::GetSingleton()) {
@@ -17,11 +42,101 @@ void Print(const std::string& msg)
     }
 }
 
-bool g_stealthEnabled = false;
-float g_sneakBoost = 1000.0f;
-float g_NoiseMod = 1.0f;
+void LogInfo(const std::string& pt, const std::string& en)
+{
+    const std::string& msg = VaiBrasa ? pt : en;
 
-//Busca os seguidores
+    if (g_loggerIniciado) {
+        logger::info("{}", msg);
+    } else {
+        Print(msg);
+    }
+}
+
+void LogErro(const std::string& pt, const std::string& en)
+{
+    const std::string& msg = VaiBrasa ? pt : en;
+
+    if (g_loggerIniciado) {
+        logger::error("{}", msg);
+    } else {
+        Print(msg);
+    }
+}
+
+std::string GetActorDisplayName(RE::Actor* actor)
+{
+    if (!actor) {
+        return VaiBrasa ? "Ator desconhecido" : "Unknown actor";
+    }
+
+    const char* name = actor->GetName();
+
+    if (!name || name[0] == '\0') {
+        return VaiBrasa ? "Ator sem nome" : "Unnamed actor";
+    }
+
+    return std::string(name);
+}
+
+
+// ------------------------------------------------------------
+// Idioma do Windows
+// ------------------------------------------------------------
+
+std::string DetectarIdioma(bool& success)
+{
+    success = false;
+
+    wchar_t localeName[LOCALE_NAME_MAX_LENGTH]{};
+
+    if (!GetUserDefaultLocaleName(localeName, LOCALE_NAME_MAX_LENGTH)) {
+        return "unknown";
+    }
+
+    int sizeNeeded = WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        localeName,
+        -1,
+        nullptr,
+        0,
+        nullptr,
+        nullptr);
+
+    if (sizeNeeded <= 0) {
+        return "unknown";
+    }
+
+    std::string result(sizeNeeded, '\0');
+
+    int converted = WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        localeName,
+        -1,
+        result.data(),
+        sizeNeeded,
+        nullptr,
+        nullptr);
+
+    if (converted <= 0) {
+        return "unknown";
+    }
+
+    if (!result.empty() && result.back() == '\0') {
+        result.pop_back();
+    }
+
+    success = true;
+    return result;
+}
+
+
+// ------------------------------------------------------------
+// Busca de seguidores
+// ------------------------------------------------------------
+
 bool IsFollower(RE::Actor* actor)
 {
     auto* player = RE::PlayerCharacter::GetSingleton();
@@ -31,7 +146,7 @@ bool IsFollower(RE::Actor* actor)
            actor->IsPlayerTeammate();
 }
 
-void ForEachFollower(const std::function<void(RE::Actor*)>& callback)
+void ForEachFollower(const std::function<void(RE::Actor*, const RE::ActorHandle&)>& callback)
 {
     auto* processLists = RE::ProcessLists::GetSingleton();
 
@@ -40,99 +155,127 @@ void ForEachFollower(const std::function<void(RE::Actor*)>& callback)
     }
 
     for (const auto& handle : processLists->highActorHandles) {
-        auto actor = handle.get().get();
+        auto actorPtr = handle.get();
+
+        if (!actorPtr) {
+            continue;
+        }
+
+        auto* actor = actorPtr.get();
 
         if (!IsFollower(actor)) {
             continue;
         }
 
-        callback(actor);
+        callback(actor, handle);
     }
 }
 
-void EnableFollowerStealth()
+
+// ------------------------------------------------------------
+// Aplicação e remoção dos efeitos
+// ------------------------------------------------------------
+
+bool AplicarEfeitos(RE::Actor* actor)
 {
-    if (g_stealthEnabled) {
+    if (!actor) {
+        return false;
+    }
+
+    auto* avOwner = actor->AsActorValueOwner();
+
+    if (!avOwner) {
+        return false;
+    }
+
+    avOwner->ModActorValue(RE::ActorValue::kSneak, g_sneakBoost);
+    avOwner->ModActorValue(RE::ActorValue::kInvisibility, g_invisibilityBoost);
+
+    return true;
+}
+
+bool RemoverEfeitos(RE::Actor* actor)
+{
+    if (!actor) {
+        return false;
+    }
+
+    auto* avOwner = actor->AsActorValueOwner();
+
+    if (!avOwner) {
+        return false;
+    }
+
+    avOwner->ModActorValue(RE::ActorValue::kSneak, -g_sneakBoost);
+    avOwner->ModActorValue(RE::ActorValue::kInvisibility, -g_invisibilityBoost);
+
+    return true;
+}
+
+void AtivarEfeitosSeguidores()
+{
+    if (g_stealthAtivado) {
         return;
     }
 
-    g_stealthEnabled = true;
+    g_stealthAtivado = true;
+    g_seguidores.clear();
 
-    ForEachFollower([](RE::Actor* actor)
+    ForEachFollower([](RE::Actor* actor, const RE::ActorHandle& handle)
     {
-        actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kSneak,g_sneakBoost);
-        if(VaiBrasa){
-            //Print(std::string(actor->GetName()) + " recebeu boost de sneak");
-            logger::info("{} recebeu boost de sneak", actor->GetName());
-        } else {
-            //Print(std::string(actor->GetName()) + " received sneak boost");
-            logger::info("{} received sneak boost", actor->GetName());
+        if (!AplicarEfeitos(actor)) {
+            return;
         }
-        
-        /*Removido por entrar em conflito com sneak
-        actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kMovementNoiseMult,-g_NoiseMod);
-        if(VaiBrasa){
-            //Print(std::string(actor->GetName()) + " não faz barulho");
-            logger::info("{} não faz barulho", actor->GetName());
-        } else {
-            //Print(std::string(actor->GetName()) + " makes no noise");
-            logger::info("{} makes no noise", actor->GetName());
-        }
-        */
 
-        actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kInvisibility,1.0f);
-        if(VaiBrasa){
-            //Print(std::string(actor->GetName()) + " está invisível");
-            logger::info("{} está invisível", actor->GetName());
-        } else {
-            //Print(std::string(actor->GetName()) + " is invisible");
-            logger::info("{} is invisible", actor->GetName());
-        }
-        
+        g_seguidores.push_back(handle);
+
+        const auto actorName = GetActorDisplayName(actor);
+
+        LogInfo(
+            actorName + " recebeu boost de sneak e invisibilidade",
+            actorName + " received sneak boost and invisibility");
     });
 }
 
-void DisableFollowerStealth()
+void DesativarEfeitosSeguidores()
 {
-    if (!g_stealthEnabled) {
+    if (!g_stealthAtivado) {
         return;
     }
 
-    g_stealthEnabled = false;
+    g_stealthAtivado = false;
 
-    ForEachFollower([](RE::Actor* actor)
-    {
-        actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kSneak,-g_sneakBoost);
+    for (const auto& handle : g_seguidores) {
+        auto actorPtr = handle.get();
 
-        if(VaiBrasa){
-            //Print(std::string(actor->GetName()) + " perdeu o boost de sneak");
-            logger::info("{} perdeu o boost de sneak", actor->GetName());
-        } else {
-            //Print(std::string(actor->GetName()) + " lost sneak boost");
-            logger::info("{} lost sneak boost", actor->GetName());
+        if (!actorPtr) {
+            continue;
         }
 
-        /*Removido por entrar em conflito com sneak
-        actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kMovementNoiseMult,g_NoiseMod);
-        if(VaiBrasa){
-            //Print(std::string(actor->GetName()) + " voltou a fazer barulho");
-            logger::info("{} voltou a fazer barulho", actor->GetName());
-        } else {
-            //Print(std::string(actor->GetName()) + " makes noise again");
-            logger::info("{} makes noise again", actor->GetName());
+        auto* actor = actorPtr.get();
+
+        if (!actor) {
+            continue;
         }
-        */
-       
-        actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kInvisibility,-1.0f);
-        if(VaiBrasa){
-            //Print(std::string(actor->GetName()) + " voltou a ser visível");
-            logger::info("{} voltou a ser visível", actor->GetName());
-        } else {
-            //Print(std::string(actor->GetName()) + " is visible again");
-            logger::info("{} is visible again", actor->GetName());
+
+        if (!RemoverEfeitos(actor)) {
+            continue;
         }
-    });
+
+        const auto actorName = GetActorDisplayName(actor);
+
+        LogInfo(
+            actorName + " perdeu boost de sneak e invisibilidade",
+            actorName + " lost sneak boost and invisibility");
+    }
+
+    g_seguidores.clear();
 }
+
+
+// ------------------------------------------------------------
+// Eventos de animação
+// ------------------------------------------------------------
 
 class AnimationEventSink :
     public RE::BSTEventSink<RE::BSAnimationGraphEvent>
@@ -145,9 +288,9 @@ public:
     }
 
     RE::BSEventNotifyControl ProcessEvent(
-    const RE::BSAnimationGraphEvent* event,
-    RE::BSTEventSource<RE::BSAnimationGraphEvent>*)
-    override
+        const RE::BSAnimationGraphEvent* event,
+        RE::BSTEventSource<RE::BSAnimationGraphEvent>*)
+        override
     {
         if (!event) {
             return RE::BSEventNotifyControl::kContinue;
@@ -160,28 +303,22 @@ public:
         }
 
         const std::string tag = event->tag.c_str();
-
-        if (tag == "tailSneakIdle" && !g_stealthEnabled) {
-            if(VaiBrasa){
-                //Print("sneak detectado");
-                logger::info("sneak detectado");
-            } else {
-                //Print("sneak detected");
-                logger::info("sneak detected");
-            }
-            EnableFollowerStealth();
+        
+        if(p_debug){
+            LogInfo(
+                "Evento de animacao recebido: " + tag,
+                "Animation event received: " + tag);
         }
 
-        else if (tag == "tailMTIdle" && g_stealthEnabled) {
-            if(VaiBrasa){
-                //Print("saindo de sneak");
-                logger::info("saindo de sneak");
-            } else {
-                //Print("exiting sneak");
-                logger::info("exiting sneak");
-            }
-            DisableFollowerStealth();
+        if (tag == "tailSneakIdle" && !g_stealthAtivado) {
+            LogInfo("sneak detectado", "sneak detected");
+            AtivarEfeitosSeguidores();
         }
+        else if (tag == "tailMTIdle" && g_stealthAtivado) {
+            LogInfo("saindo de sneak", "exiting sneak");
+            DesativarEfeitosSeguidores();
+        }
+
         return RE::BSEventNotifyControl::kContinue;
     }
 };
@@ -191,142 +328,130 @@ void RegisterAnimationEvents()
     auto* player = RE::PlayerCharacter::GetSingleton();
 
     if (!player) {
-        if(VaiBrasa) {
-            //Print("Player não encontrado");
-            logger::error("Player não encontrado");
-        } else {
-            //Print("Player not found");
-            logger::error("Player not found");
-        }
+        LogErro("Player não encontrado", "Player not found");
         return;
     }
 
-    player->AddAnimationGraphEventSink(
-        AnimationEventSink::GetSingleton());
+    player->RemoveAnimationGraphEventSink(AnimationEventSink::GetSingleton());
+    player->AddAnimationGraphEventSink(AnimationEventSink::GetSingleton());
 
-    //Print("AnimationGraphEvent registrado");
-    logger::info("AnimationGraphEvent registrado");
-    
+    g_EventosAnimacaoRegistrados = true;
+
+    LogInfo(
+        "AnimationGraphEvent registrado/re-registrado",
+        "AnimationGraphEvent registered/re-registered");
 }
 
-//Tentativa de aplicar a flag
-/*
-void SetFollowerStealth(RE::Actor* actor, bool enable)
+
+// ------------------------------------------------------------
+// Logger
+// ------------------------------------------------------------
+
+void IniciarLog()
 {
-    if (!actor) {
+    if (g_loggerIniciado) {
         return;
     }
 
-    if (enable) {
-        actor->boolFlags.set(RE::Actor::BOOL_FLAGS::kDoNotShowOnStealthMeter);
-    } else {
-        actor->boolFlags.reset(RE::Actor::BOOL_FLAGS::kDoNotShowOnStealthMeter);
-    }
-}
-*/
+    bool localeOk = false;
+    std::string localeName = DetectarIdioma(localeOk);
 
-//Para a criação de logs
-void InitializeLogging()
-{
-    wchar_t localeName[LOCALE_NAME_MAX_LENGTH]{};
-    std::string locale_name = "unknown";
-
-    if (GetUserDefaultLocaleName(localeName, LOCALE_NAME_MAX_LENGTH)) {
-
-        std::wstring wlocale(localeName);
-
-        int sizeNeeded = WideCharToMultiByte(
-            CP_UTF8,
-            0,
-            wlocale.c_str(),
-            -1,
-            nullptr,
-            0,
-            nullptr,
-            nullptr);
-
-        if (sizeNeeded > 0) {
-            locale_name.resize(sizeNeeded - 1);
-
-            WideCharToMultiByte(
-                CP_UTF8,
-                0,
-                wlocale.c_str(),
-                -1,
-                locale_name.data(),
-                sizeNeeded,
-                nullptr,
-                nullptr);
-
-            VaiBrasa = locale_name.starts_with("pt");
-        }
-    }
-    else {
-        logger::error("GetUserDefaultLocaleName failed");
-    }
+    VaiBrasa = localeName.starts_with("pt");
 
     auto path = logger::log_directory();
 
     if (!path) {
+        Print("logger::log_directory() returned nullptr");
         return;
     }
 
     *path /= "InvisibilityAffectsFollowersToo.log";
 
-    auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(
-        path->string(), true);
+    try {
+        std::filesystem::create_directories(path->parent_path());
 
-    auto log = std::make_shared<spdlog::logger>(
-        "global log",
-        std::move(sink));
+        auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(
+            path->string(),
+            true);
 
-    log->set_level(spdlog::level::debug);
-    log->flush_on(spdlog::level::info);
+        auto log = std::make_shared<spdlog::logger>(
+            "global log",
+            std::move(sink));
 
-    spdlog::set_default_logger(std::move(log));
-    spdlog::set_pattern("[%H:%M:%S] [%l] %v");
+        log->set_level(spdlog::level::debug);
+        log->flush_on(spdlog::level::info);
+
+        spdlog::set_default_logger(std::move(log));
+        spdlog::set_pattern("[%H:%M:%S] [%l] %v");
+
+        g_loggerIniciado = true;
+    }
+    catch (const std::exception& e) {
+        Print(std::string("Failed to initialize logger: ") + e.what());
+        return;
+    }
 
     logger::info("Logger Made In Arstotzka");
 
     if (VaiBrasa) {
         logger::info("Logger inicializado");
-        logger::info("Idioma detectado: {}", locale_name);
+        logger::info("Idioma detectado: {}", localeName);
     } else {
         logger::info("Logger initialized");
-        logger::info("Detected language: {}", locale_name);
+        logger::info("Detected language: {}", localeName);
+    }
+
+    if (!localeOk) {
+        logger::error("GetUserDefaultLocaleName failed");
     }
 }
 
+
+// ------------------------------------------------------------
+// Entrada principal do plugin
+// ------------------------------------------------------------
+
 SKSEPluginLoad(const SKSE::LoadInterface* skse)
 {
-    
     SKSE::Init(skse);
-    
-    SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* message)
-        {
-            if (message->type == SKSE::MessagingInterface::kDataLoaded) {
-                InitializeLogging();
-                if(VaiBrasa){
-                    //Print("Tentou iniciar Logger");
-                    //Print("Plugin carregado no menu principal");
-                    logger::info("Plugin carregado no menu principal");
-                } else {
-                    //Print("Tried to initialize Logger");
-                    //Print("Plugin loaded in main menu");
-                    logger::info("Plugin loaded in main menu");
-                }
-            }
-            if (message->type == SKSE::MessagingInterface::kPostLoadGame) {
-                if(VaiBrasa){
-                    //Print("InvisibilityAffectsFollowersToo carregado");
-                    logger::info("InvisibilityAffectsFollowersToo carregado");
-                } else {
-                    //Print("InvisibilityAffectsFollowersToo loaded");
-                    logger::info("InvisibilityAffectsFollowersToo loaded");
-                }
-                RegisterAnimationEvents();
-            }
-        });
+
+    auto* messaging = SKSE::GetMessagingInterface();
+
+    if (!messaging) {
+        return false;
+    }
+
+    messaging->RegisterListener([](SKSE::MessagingInterface::Message* message)
+    {
+        if (!message) {
+            return;
+        }
+
+        switch (message->type) {
+        case SKSE::MessagingInterface::kDataLoaded:
+            IniciarLog();
+
+            LogInfo(
+                "Plugin carregado no menu principal",
+                "Plugin loaded in main menu");
+            break;
+
+        case SKSE::MessagingInterface::kPostLoadGame:
+            LogInfo(
+                "InvisibilityAffectsFollowersToo carregado",
+                "InvisibilityAffectsFollowersToo loaded");
+
+            RegisterAnimationEvents();
+            break;
+
+        case SKSE::MessagingInterface::kPreLoadGame:
+            DesativarEfeitosSeguidores();
+            break;
+
+        default:
+            break;
+        }
+    });
 
     return true;
 }
