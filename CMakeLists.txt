@@ -16,14 +16,14 @@ set(OUTPUT_FOLDER "C:\\Users\\Huehuller\\Documents\\VSCode Projects\\Seguidores-
 
 # Gera Version.h para o C++
 configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/Version.h.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Version.h.in"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/Version.h"
     @ONLY
 )
 
 # Gera PluginVersion.rc para o Windows Explorer
 configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/PluginVersion.rc.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PluginVersion.rc.in"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/PluginVersion.rc"
     @ONLY
 )
@@ -34,15 +34,16 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     AUTHOR ${SKSSE_PLUGIN_AUTHOR}
     EMAIL ${SKSSE_PLUGIN_EMAIL}
     SOURCES
-        plugin.cpp
+        src/plugin.cpp
         "${CMAKE_CURRENT_BINARY_DIR}/generated/PluginVersion.rc"
 )
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
-target_precompile_headers(${PROJECT_NAME} PRIVATE PCH.h)
+target_precompile_headers(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/PCH.h")
 
 target_include_directories(${PROJECT_NAME}
     PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${CMAKE_CURRENT_BINARY_DIR}/generated"
 )
 
