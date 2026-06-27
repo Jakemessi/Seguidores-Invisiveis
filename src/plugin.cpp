@@ -1,3 +1,4 @@
+#include "PCH.h"
 #include "Version.h"
 
 #include <functional>
@@ -189,6 +190,51 @@ bool AplicarEfeitos(RE::Actor* actor)
         return false;
     }
 
+    actor->ModActorValue(
+        g_modificadorActorValue,
+        RE::ActorValue::kSneak,
+        g_sneakBoost
+    );
+
+    actor->ModActorValue(
+        g_modificadorActorValue,
+        RE::ActorValue::kInvisibility,
+        g_invisibilityBoost
+    );
+
+    return true;
+}
+
+bool RemoverEfeitos(RE::Actor* actor)
+{
+    if (!actor) {
+        return false;
+    }
+
+    actor->ModActorValue(
+        g_modificadorActorValue,
+        RE::ActorValue::kSneak,
+        -g_sneakBoost
+    );
+
+    actor->ModActorValue(
+        g_modificadorActorValue,
+        RE::ActorValue::kInvisibility,
+        -g_invisibilityBoost
+    );
+
+    return true;
+}
+
+/*
+// CommonLibNG
+// Métodos de aplicação e remoção de AVs Temporários
+bool AplicarEfeitos(RE::Actor* actor)
+{
+    if (!actor) {
+        return false;
+    }
+
     auto* avOwner = actor->AsActorValueOwner();
 
     if (!avOwner) {
@@ -273,7 +319,8 @@ bool RemoverEfeitos(RE::Actor* actor)
 
     return true;
 }
-*/
+//*/
+//*/
 
 void AtivarEfeitosSeguidores()
 {
@@ -510,7 +557,7 @@ void IniciarLog()
         logger::info("Logger initialized");
         logger::info("Detected language: {}", localeName);
     }
-
+    logger::info("Vai Corinthians!");
     if (!localeOk) {
         logger::error("GetUserDefaultLocaleName failed");
     }
@@ -520,7 +567,75 @@ void IniciarLog()
 // ------------------------------------------------------------
 // Entrada principal do plugin
 // ------------------------------------------------------------
+// Do CommonlibsSE
+extern "C" __declspec(dllexport) constinit auto SKSEPlugin_Version = []()
+{
+    SKSE::PluginVersionData v;
 
+    v.PluginVersion(REL::Version{
+        PLUGIN_VERSION_MAJOR,
+        PLUGIN_VERSION_MINOR,
+        PLUGIN_VERSION_PATCH,
+        PLUGIN_VERSION_BUILD
+    });
+    v.PluginName(PLUGIN_NAME);
+    v.AuthorName(PLUGIN_AUTHOR);
+    v.UsesAddressLibrary();
+    v.UsesNoStructs();
+    v.CompatibleVersions({ SKSE::RUNTIME_SSE_LATEST });
+
+    return v;
+}();
+
+extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* skse)
+{
+    SKSE::Init(skse);
+
+    IniciarLog();
+
+    logger::info("Game version: {}", skse->RuntimeVersion().string());
+
+    auto* messaging = SKSE::GetMessagingInterface();
+
+    if (!messaging) {
+        return false;
+    }
+
+    messaging->RegisterListener("SKSE", [](SKSE::MessagingInterface::Message* message)
+    {
+        if (!message) {
+            return;
+        }
+
+        switch (message->type) {
+        case SKSE::MessagingInterface::kDataLoaded:
+            LogInfo(
+                "Plugin carregado no menu principal",
+                "Plugin loaded in main menu");
+            break;
+
+        case SKSE::MessagingInterface::kPostLoadGame:
+            LogInfo(
+                "InvisibilityAffectsFollowersToo carregado",
+                "InvisibilityAffectsFollowersToo loaded");
+
+            RegisterAnimationEvents();
+            break;
+
+        case SKSE::MessagingInterface::kPreLoadGame:
+            DesativarEfeitosSeguidores();
+            break;
+
+        default:
+            break;
+        }
+    });
+
+    return true;
+}
+
+/*
+// Do CommonlibsSE-NG
 SKSEPluginLoad(const SKSE::LoadInterface* skse)
 {
     SKSE::Init(skse);
@@ -565,3 +680,4 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse)
 
     return true;
 }
+//*/

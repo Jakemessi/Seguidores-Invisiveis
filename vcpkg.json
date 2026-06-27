@@ -1,6 +1,10 @@
 {
-    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
-    "dependencies": [
-        "commonlibsse-ng"
-    ]
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "invisibility-affects-followers-too",
+  "version-string": "2.0.0",
+  "dependencies": [
+    "rsm-binary-io",
+    "spdlog",
+    "xbyak"
+  ]
 }
