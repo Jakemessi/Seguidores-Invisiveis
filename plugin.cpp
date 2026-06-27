@@ -19,7 +19,7 @@ bool VaiBrasa = false;
 bool g_loggerIniciado = false;
 bool g_stealthAtivado = false;
 bool g_EventosAnimacaoRegistrados = false;
-bool p_debug = false
+bool p_debug = true;
 
 // Valores aplicados pelo plugin
 float g_sneakBoost = 1000.0f;
