@@ -21,7 +21,6 @@ bool VaiBrasa = false;
 // Estado do plugin
 bool g_loggerIniciado = false;
 bool g_stealthAtivado = false;
-bool g_EventosAnimacaoRegistrados = false;
 constexpr bool p_debug = false;
 
 // Valores aplicados pelo plugin
@@ -226,102 +225,6 @@ bool RemoverEfeitos(RE::Actor* actor)
     return true;
 }
 
-/*
-// CommonLibNG
-// Métodos de aplicação e remoção de AVs Temporários
-bool AplicarEfeitos(RE::Actor* actor)
-{
-    if (!actor) {
-        return false;
-    }
-
-    auto* avOwner = actor->AsActorValueOwner();
-
-    if (!avOwner) {
-        return false;
-    }
-
-    avOwner->RestoreActorValue(
-        g_modificadorActorValue,
-        RE::ActorValue::kSneak,
-        g_sneakBoost
-    );
-
-    avOwner->RestoreActorValue(
-        g_modificadorActorValue,
-        RE::ActorValue::kInvisibility,
-        g_invisibilityBoost
-    );
-
-    return true;
-}
-
-bool RemoverEfeitos(RE::Actor* actor)
-{
-    if (!actor) {
-        return false;
-    }
-
-    auto* avOwner = actor->AsActorValueOwner();
-
-    if (!avOwner) {
-        return false;
-    }
-
-    avOwner->RestoreActorValue(
-        g_modificadorActorValue,
-        RE::ActorValue::kSneak,
-        -g_sneakBoost
-    );
-
-    avOwner->RestoreActorValue(
-        g_modificadorActorValue,
-        RE::ActorValue::kInvisibility,
-        -g_invisibilityBoost
-    );
-
-    return true;
-}
-
-/* Método de aplicação e remoção de AVs Permanentes
-bool AplicarEfeitos(RE::Actor* actor)
-{
-    if (!actor) {
-        return false;
-    }
-
-    auto* avOwner = actor->AsActorValueOwner();
-
-    if (!avOwner) {
-        return false;
-    }
-
-    avOwner->ModActorValue(RE::ActorValue::kSneak, g_sneakBoost);
-    avOwner->ModActorValue(RE::ActorValue::kInvisibility, g_invisibilityBoost);
-
-    return true;
-}
-
-bool RemoverEfeitos(RE::Actor* actor)
-{
-    if (!actor) {
-        return false;
-    }
-
-    auto* avOwner = actor->AsActorValueOwner();
-
-    if (!avOwner) {
-        return false;
-    }
-
-    avOwner->ModActorValue(RE::ActorValue::kSneak, -g_sneakBoost);
-    avOwner->ModActorValue(RE::ActorValue::kInvisibility, -g_invisibilityBoost);
-
-    return true;
-}
-//*/
-//*/
-
 void AtivarEfeitosSeguidores()
 {
     if (g_stealthAtivado) {
@@ -412,10 +315,9 @@ public:
             return RE::BSEventNotifyControl::kContinue;
         }
 
-        const std::string tag = event->tag.c_str();
-
         if constexpr (p_debug){
             if (g_loggerIniciado) {
+                const std::string tag = event->tag.c_str();
                 LogInfo(
                 "Evento de animacao recebido: " + tag,
                 "Animation event received: " + tag);
@@ -444,44 +346,6 @@ public:
 
         return RE::BSEventNotifyControl::kContinue;
     }
-    
-    /*
-    //Por meio de animação
-    RE::BSEventNotifyControl ProcessEvent(
-        const RE::BSAnimationGraphEvent* event,
-        RE::BSTEventSource<RE::BSAnimationGraphEvent>*)
-        override
-    {
-        if (!event) {
-            return RE::BSEventNotifyControl::kContinue;
-        }
-
-        auto* player = RE::PlayerCharacter::GetSingleton();
-
-        if (!player || event->holder != player) {
-            return RE::BSEventNotifyControl::kContinue;
-        }
-
-        const std::string tag = event->tag.c_str();
-        
-        if(p_debug){
-            LogInfo(
-                "Evento de animacao recebido: " + tag,
-                "Animation event received: " + tag);
-        }
-
-        if (tag == "tailSneakIdle" && !g_stealthAtivado) {
-            LogInfo("Sneak detectado", "Sneak detected");
-            AtivarEfeitosSeguidores();
-        }
-        else if (tag == "tailMTIdle" && g_stealthAtivado) {
-            LogInfo("Saindo de sneak", "Exiting sneak");
-            DesativarEfeitosSeguidores();
-        }
-
-        return RE::BSEventNotifyControl::kContinue;
-    }
-    */
 };
 
 void RegisterAnimationEvents()
@@ -495,8 +359,6 @@ void RegisterAnimationEvents()
 
     player->RemoveAnimationGraphEventSink(AnimationEventSink::GetSingleton());
     player->AddAnimationGraphEventSink(AnimationEventSink::GetSingleton());
-
-    g_EventosAnimacaoRegistrados = true;
 
     LogInfo(
         "AnimationGraphEvent registrado/re-registrado",
@@ -637,51 +499,3 @@ extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadIn
 
     return true;
 }
-
-/*
-// Do CommonlibsSE-NG
-SKSEPluginLoad(const SKSE::LoadInterface* skse)
-{
-    SKSE::Init(skse);
-
-    auto* messaging = SKSE::GetMessagingInterface();
-
-    if (!messaging) {
-        return false;
-    }
-
-    messaging->RegisterListener([](SKSE::MessagingInterface::Message* message)
-    {
-        if (!message) {
-            return;
-        }
-
-        switch (message->type) {
-        case SKSE::MessagingInterface::kDataLoaded:
-            IniciarLog();
-
-            LogInfo(
-                std::string(PLUGIN_NAME) + " v" + PLUGIN_VERSION_STRING + " carregado no menu principal",
-                std::string(PLUGIN_NAME) + " v" + PLUGIN_VERSION_STRING + " loaded in main menu");
-            break;
-
-        case SKSE::MessagingInterface::kPostLoadGame:
-            LogInfo(
-                "InvisibilityAffectsFollowersToo carregado",
-                "InvisibilityAffectsFollowersToo loaded");
-
-            RegisterAnimationEvents();
-            break;
-
-        case SKSE::MessagingInterface::kPreLoadGame:
-            DesativarEfeitosSeguidores();
-            break;
-
-        default:
-            break;
-        }
-    });
-
-    return true;
-}
-//*/
