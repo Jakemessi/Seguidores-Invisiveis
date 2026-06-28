@@ -140,7 +140,8 @@ void AtivarEfeitosSeguidores()
 
         LogInfo(
             actorName + " recebeu boost de sneak e invisibilidade",
-            actorName + " received sneak boost and invisibility");
+            actorName + " received sneak boost and invisibility"
+        );
     });
 }
 
@@ -173,7 +174,8 @@ void DesativarEfeitosSeguidores()
 
         LogInfo(
             actorName + " perdeu boost de sneak e invisibilidade",
-            actorName + " lost sneak boost and invisibility");
+            actorName + " lost sneak boost and invisibility"
+        );
     }
 
     g_seguidores.clear();
@@ -214,7 +216,8 @@ public:
                 const std::string tag = event->tag.c_str();
                 LogInfo(
                 "Evento de animacao recebido: " + tag,
-                "Animation event received: " + tag);
+                "Animation event received: " + tag
+            );
             }
         }
 
@@ -256,7 +259,8 @@ void RegisterAnimationEvents()
 
     LogInfo(
         "AnimationGraphEvent registrado/re-registrado",
-        "AnimationGraphEvent registered/re-registered");
+        "AnimationGraphEvent registered/re-registered"
+    );
 }
 
 // ------------------------------------------------------------
@@ -288,7 +292,10 @@ extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadIn
 
     IniciarLog();
 
-    logger::info("Game version: {}", skse->RuntimeVersion().string());
+    LogInfo(
+                ("Versão do Skyrim: {}", skse->RuntimeVersion().string()),
+                ("Skyrim version: {}", skse->RuntimeVersion().string())
+            );
 
     auto* messaging = SKSE::GetMessagingInterface();
 
@@ -306,13 +313,15 @@ extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadIn
         case SKSE::MessagingInterface::kDataLoaded:
             LogInfo(
                 "Plugin carregado no menu principal",
-                "Plugin loaded in main menu");
+                "Plugin loaded in main menu"
+            );
             break;
 
         case SKSE::MessagingInterface::kPostLoadGame:
             LogInfo(
                 "InvisibilityAffectsFollowersToo carregado",
-                "InvisibilityAffectsFollowersToo loaded");
+                "InvisibilityAffectsFollowersToo loaded"
+            );
 
             RegisterAnimationEvents();
             break;
