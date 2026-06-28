@@ -5,14 +5,16 @@ Meu primeiro pulgin SKSE para Skyrim Special Edition
 ---
 
 - [Oque este plugin faz?](#Oque-este-plugin-faz)
-- [CommonLibSSE NG](#commonlibsse-ng)
+- [CommonLibSSE](#commonlibsse)
 
 # Oque este plugin faz?
 
 Este mod para Skyrim Special Edition, faz com que quando o jogador agachar, isto é, entrar no estado de stealth, ele faz com que os seus seguidores se tornem praticamente invisíveis aos inimigos.
 
-# CommonLibSSE NG
+# CommonLibSSE
 
-Esse mod utiliza a biblioteca [CommonLibSSE NG](https://github.com/CharmedBaryon/CommonLibSSE-NG), fazendo com que funcione nas versões Special Edition, Anniversary Edition, a versão disponibilizada na GOG e o Skyrim VR.
+Este plugin utiliza a biblioteca [CommonLibSSE](https://github.com/powerof3/CommonLibSSE), mantida pelo fork de [powerof3](https://github.com/powerof3), como base para integração com SKSE e acesso às estruturas internas do Skyrim Special Edition / Anniversary Edition.
 
-[CommonLibSSE NG](https://github.com/CharmedBaryon/CommonLibSSE-NG) é um fork do repertório [powerof3 fork](https://github.com/powerof3/CommonLibSSE) da biblioteca _original_ `CommonLibSSE` criado por [Ryan McKenzie](https://github.com/Ryan-rsm-McKenzie) em [2018](https://github.com/Ryan-rsm-McKenzie/CommonLibSSE/commit/224773c424bdb8e36c761810cdff0fcfefda5f4a).
+A `CommonLibSSE` é uma biblioteca C++ voltada ao desenvolvimento de plugins SKSE, permitindo interagir com classes, eventos, sistemas e funções internas do jogo de forma mais organizada e segura do que trabalhar diretamente com endereços brutos.
+
+Este projeto foi desenvolvido com foco no Skyrim Special Edition / Anniversary Edition, utilizando Address Library e SKSE.
