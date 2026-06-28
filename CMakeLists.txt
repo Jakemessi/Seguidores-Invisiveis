@@ -14,7 +14,7 @@ else()
 endif()
 
 # Set your project name. This will be the name of your SKSE .dll file.
-project(InvisibilityAffectsFollowersToo VERSION 4.4.1.2 LANGUAGES CXX RC)
+project(InvisibilityAffectsFollowersToo VERSION 4.4.1.3 LANGUAGES CXX RC)
 # Major . Minor . Patch . Tweak
 
 set(SKSSE_PLUGIN_AUTHOR "Huehuller")
