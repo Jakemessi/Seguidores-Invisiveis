@@ -1,21 +1,7 @@
 #include "PCH.h"
 #include "Version.h"
 
-#include <functional>
-#include <string>
-#include <vector>
-#include <filesystem>
-
-#include <SKSE/Logger.h>
-#include <spdlog/sinks/basic_file_sink.h>
-#include <spdlog/spdlog.h>
-#include <memory>
-
 //Para poder mudar log para português ou inglês
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <Windows.h>
 bool VaiBrasa = false;
 
 // Estado do plugin
