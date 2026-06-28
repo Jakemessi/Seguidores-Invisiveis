@@ -68,7 +68,9 @@ endif()
 add_library(${PROJECT_NAME}
     SHARED
         src/plugin.cpp
+        src/Logger.cpp
         src/PCH.h
+        src/Logger.h
         "${CMAKE_CURRENT_BINARY_DIR}/generated/Version.h"
         "${CMAKE_CURRENT_BINARY_DIR}/generated/PluginVersion.rc"
 )
