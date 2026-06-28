@@ -2,8 +2,8 @@
 @echo off
 setlocal
 
-REM Fonte relativa à pasta do script: SKSE\Plugins
-set "SRC=%~dp0..\SKSE\Plugins"
+REM Fonte relativa à pasta do script: SKSE
+set "SRC=%~dp0..\SKSE"
 set "DST=C:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\Data\SKSE\Plugins"
 
 REM Criar destino se necessário
