@@ -111,7 +111,7 @@ if(MSVC)
 endif()
 
 if(DEFINED OUTPUT_FOLDER)
-    set(DLL_FOLDER "${OUTPUT_FOLDER}/SKSE/Plugins")
+    set(DLL_FOLDER "${OUTPUT_FOLDER}/SKSE")
 
     message(STATUS "SKSE plugin output folder: ${DLL_FOLDER}")
 
