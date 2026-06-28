@@ -22,7 +22,7 @@ bool VaiBrasa = false;
 bool g_loggerIniciado = false;
 bool g_stealthAtivado = false;
 bool g_EventosAnimacaoRegistrados = false;
-bool p_debug = false;
+constexpr bool p_debug = false;
 
 // Valores aplicados pelo plugin
 float g_sneakBoost = 1000.0f;
@@ -414,19 +414,23 @@ public:
 
         const std::string tag = event->tag.c_str();
 
-        if (p_debug && g_loggerIniciado) {
-            LogInfo(
+        if constexpr (p_debug){
+            if (g_loggerIniciado) {
+                LogInfo(
                 "Evento de animacao recebido: " + tag,
                 "Animation event received: " + tag);
+            }
         }
 
         const bool estaAgachado = player->IsSneaking();
 
-        if (p_debug && g_loggerIniciado) {
-            LogInfo(
-                "Estado do player: IsSneaking=" + std::string(estaAgachado ? "true" : "false") + ", g_stealthAtivado=" + std::string(g_stealthAtivado ? "true" : "false"),
-                "Player state: IsSneaking=" + std::string(estaAgachado ? "true" : "false") + ", g_stealthAtivado=" + std::string(g_stealthAtivado ? "true" : "false")
-            );
+        if constexpr (p_debug) {
+            if (g_loggerIniciado) {
+                LogInfo(
+                    "Estado do player: IsSneaking=" + std::string(estaAgachado ? "true" : "false") + ", g_stealthAtivado=" + std::string(g_stealthAtivado ? "true" : "false"),
+                    "Player state: IsSneaking=" + std::string(estaAgachado ? "true" : "false") + ", g_stealthAtivado=" + std::string(g_stealthAtivado ? "true" : "false")
+                );
+            }
         }
 
         if (estaAgachado && !g_stealthAtivado) {
