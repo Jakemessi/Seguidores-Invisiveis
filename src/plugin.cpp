@@ -352,6 +352,14 @@ extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadIn
             );
 
             RegisterAnimationEvents();
+
+            // Ativa os efeitos caso o save tenha sido carregado
+            // com o jogador já agachado.
+            if (auto* player = RE::PlayerCharacter::GetSingleton();
+                player && player->IsSneaking()) {
+                AtivarEfeitosSeguidores();
+            }
+
             break;
 
         case SKSE::MessagingInterface::kPreLoadGame:
