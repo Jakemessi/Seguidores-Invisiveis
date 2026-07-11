@@ -25,13 +25,13 @@ std::vector<RE::ActorHandle> g_seguidores;
 std::string GetActorDisplayName(RE::Actor* actor)
 {
     if (!actor) {
-        return VaiBrasa ? "Ator desconhecido" : "Unknown actor";
+        return VaiBrasa() ? "Ator desconhecido" : "Unknown actor";
     }
 
     const char* name = actor->GetName();
 
     if (!name || name[0] == '\0') {
-        return VaiBrasa ? "Ator sem nome" : "Unnamed actor";
+        return VaiBrasa() ? "Ator sem nome" : "Unnamed actor";
     }
 
     return std::string(name);
@@ -235,25 +235,38 @@ public:
             return RE::BSEventNotifyControl::kContinue;
         }
 
-        if constexpr (p_debug){
-            if (g_loggerIniciado) {
-                const std::string tag = event->tag.c_str();
-                LogInfo(
+        if constexpr (p_debug) {
+            const std::string tag = event->tag.c_str();
+
+            LogInfo(
                 "Evento de animacao recebido: " + tag,
                 "Animation event received: " + tag
             );
-            }
         }
 
         const bool estaAgachado = player->IsSneaking();
 
         if constexpr (p_debug) {
-            if (g_loggerIniciado) {
-                LogInfo(
-                    "Estado do player: IsSneaking=" + std::string(estaAgachado ? "true" : "false") + ", g_stealthAtivado=" + std::string(g_stealthAtivado ? "true" : "false"),
-                    "Player state: IsSneaking=" + std::string(estaAgachado ? "true" : "false") + ", g_stealthAtivado=" + std::string(g_stealthAtivado ? "true" : "false")
-                );
-            }
+            const std::string tag = event->tag.c_str();
+
+            LogInfo(
+                "Evento de animacao recebido: " + tag,
+                "Animation event received: " + tag
+            );
+        }
+
+        if constexpr (p_debug) {
+            LogInfo(
+                "Estado do player: IsSneaking=" +
+                    std::string(estaAgachado ? "true" : "false") +
+                    ", g_stealthAtivado=" +
+                    std::string(g_stealthAtivado ? "true" : "false"),
+
+                "Player state: IsSneaking=" +
+                    std::string(estaAgachado ? "true" : "false") +
+                    ", g_stealthAtivado=" +
+                    std::string(g_stealthAtivado ? "true" : "false")
+            );
         }
 
         if (estaAgachado) {

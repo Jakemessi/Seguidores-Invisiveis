@@ -29,8 +29,11 @@
 #include <Windows.h>
 
 //Para poder mudar log para português ou inglês e se o Logger Iniciou
-bool VaiBrasa = false;
-bool g_loggerIniciado = false;
+namespace
+{
+    bool g_vaiBrasa = false;
+    bool g_loggerIniciado = false;
+}
 
 void Print(const std::string& msg)
 {
@@ -41,7 +44,7 @@ void Print(const std::string& msg)
 
 void LogInfo(const std::string& pt, const std::string& en)
 {
-    const std::string& msg = VaiBrasa ? pt : en;
+    const std::string& msg = g_vaiBrasa ? pt : en;
 
     if (g_loggerIniciado) {
         logger::info("{}", msg);
@@ -52,13 +55,18 @@ void LogInfo(const std::string& pt, const std::string& en)
 
 void LogErro(const std::string& pt, const std::string& en)
 {
-    const std::string& msg = VaiBrasa ? pt : en;
+    const std::string& msg = g_vaiBrasa ? pt : en;
 
     if (g_loggerIniciado) {
         logger::error("{}", msg);
     } else {
         Print(msg);
     }
+}
+
+bool UsarPortugues()
+{
+    return g_vaiBrasa;
 }
 
 std::string DetectarIdioma(bool& success)
@@ -118,7 +126,7 @@ void IniciarLog()
     bool localeOk = false;
     std::string localeName = DetectarIdioma(localeOk);
 
-    VaiBrasa = localeName.starts_with("pt");
+    g_vaiBrasa = localeName.starts_with("pt");
 
     auto path = logger::log_directory();
 
@@ -155,7 +163,7 @@ void IniciarLog()
 
     logger::info("{} v{} - Logger Made In Arstotzka", PLUGIN_NAME, PLUGIN_VERSION_STRING);
 
-    if (VaiBrasa) {
+    if (g_vaiBrasa) {
         logger::info("Logger inicializado");
         logger::info("Idioma detectado: {}", localeName);
     } else {
