@@ -3,9 +3,13 @@
 Meu primeiro pulgin SKSE para Skyrim Special Edition
 
 ---
-
+- [Compatibilidade](#Compatibilidade)
 - [Oque este plugin faz?](#Oque-este-plugin-faz)
 - [CommonLibSSE](#commonlibsse)
+
+## Compatibilidade
+
+Testado no Skyrim Anniversary Edition 1.6.1170 com a versão correspondente do SKSE e da Address Library.
 
 # Oque este plugin faz?
 
