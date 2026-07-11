@@ -64,7 +64,7 @@ void LogErro(const std::string& pt, const std::string& en)
     }
 }
 
-bool UsarPortugues()
+bool VaiBrasa()
 {
     return g_vaiBrasa;
 }
