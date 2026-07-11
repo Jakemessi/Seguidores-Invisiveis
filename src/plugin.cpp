@@ -1,6 +1,9 @@
 #include "PCH.h"
 #include "Version.h"
 #include "Logger.h"
+
+#include <algorithm>
+
 // Estado do plugin
 bool g_stealthAtivado = false;
 constexpr bool p_debug = false;
@@ -119,17 +122,26 @@ bool RemoverEfeitos(RE::Actor* actor)
     return true;
 }
 
-void AtivarEfeitosSeguidores()
+bool SeguidorJaRegistrado(const RE::ActorHandle& handle)
 {
-    if (g_stealthAtivado) {
-        return;
-    }
+    return std::find(
+        g_seguidores.begin(),
+        g_seguidores.end(),
+        handle
+    ) != g_seguidores.end();
+}
 
-    g_stealthAtivado = true;
-    g_seguidores.clear();
-
-    ForEachFollower([](RE::Actor* actor, const RE::ActorHandle& handle)
+void SincronizarSeguidores()
+{
+    ForEachFollower([](
+        RE::Actor* actor,
+        const RE::ActorHandle& handle)
     {
+        // Evita aplicar o efeito novamente no mesmo seguidor.
+        if (SeguidorJaRegistrado(handle)) {
+            return;
+        }
+
         if (!AplicarEfeitos(actor)) {
             return;
         }
@@ -143,6 +155,18 @@ void AtivarEfeitosSeguidores()
             actorName + " received sneak boost and invisibility"
         );
     });
+}
+
+void AtivarEfeitosSeguidores()
+{
+    if (g_stealthAtivado) {
+        return;
+    }
+
+    g_stealthAtivado = true;
+    g_seguidores.clear();
+
+    SincronizarSeguidores();
 }
 
 void DesativarEfeitosSeguidores()
@@ -232,11 +256,15 @@ public:
             }
         }
 
-        if (estaAgachado && !g_stealthAtivado) {
-            LogInfo("Sneak detectado", "Sneak detected");
-            AtivarEfeitosSeguidores();
+        if (estaAgachado) {
+            if (!g_stealthAtivado) {
+                LogInfo("Sneak detectado", "Sneak detected");
+                AtivarEfeitosSeguidores();
+            } else {
+                SincronizarSeguidores();
+            }
         }
-        else if (!estaAgachado && g_stealthAtivado) {
+        else if (g_stealthAtivado) {
             LogInfo("Saindo de sneak", "Exiting sneak");
             DesativarEfeitosSeguidores();
         }
