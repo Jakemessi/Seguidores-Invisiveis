@@ -4,306 +4,308 @@
 
 #include <algorithm>
 
-// Estado do plugin
-bool g_stealthAtivado = false;
-constexpr bool p_debug = false;
-
-// Valores aplicados pelo plugin
-constexpr float g_sneakBoost = 1000.0f;
-constexpr float g_invisibilityBoost = 1.0f;
-
-// Camada do Actor Value usada pelo plugin.
-// kTemporary indica que o boost deve ser tratado como modificador temporário,
-// em vez de uma alteração permanente no valor do ator, assim sendo até mais fácil de remover.
-constexpr RE::ACTOR_VALUE_MODIFIER g_modificadorActorValue = RE::ACTOR_VALUE_MODIFIER::kTemporary;
-
-// std::vector é uma lista dinâmica: diferente de um array comum, ele pode crescer
-// ou diminuir durante a execução. Aqui ele guarda vários ActorHandle, ou seja,
-// referências seguras para os seguidores que receberam o efeito do plugin.
-std::vector<RE::ActorHandle> g_seguidores;
-
-std::string GetActorDisplayName(RE::Actor* actor)
+namespace
 {
-    if (!actor) {
-        return VaiBrasa() ? "Ator desconhecido" : "Unknown actor";
-    }
+    // Estado do plugin
+    bool g_stealthAtivado = false;
+    constexpr bool p_debug = false;
 
-    const char* name = actor->GetName();
+    // Valores aplicados pelo plugin
+    constexpr float g_sneakBoost = 1000.0f;
+    constexpr float g_invisibilityBoost = 1.0f;
 
-    if (!name || name[0] == '\0') {
-        return VaiBrasa() ? "Ator sem nome" : "Unnamed actor";
-    }
+    // Camada do Actor Value usada pelo plugin.
+    // kTemporary indica que o boost deve ser tratado como modificador temporário,
+    // em vez de uma alteração permanente no valor do ator, assim sendo até mais fácil de remover.
+    constexpr RE::ACTOR_VALUE_MODIFIER g_modificadorActorValue = RE::ACTOR_VALUE_MODIFIER::kTemporary;
 
-    return std::string(name);
-}
+    // std::vector é uma lista dinâmica: diferente de um array comum, ele pode crescer
+    // ou diminuir durante a execução. Aqui ele guarda vários ActorHandle, ou seja,
+    // referências seguras para os seguidores que receberam o efeito do plugin.
+    std::vector<RE::ActorHandle> g_seguidores;
 
-// ------------------------------------------------------------
-// Busca de seguidores
-// ------------------------------------------------------------
-
-bool IsFollower(RE::Actor* actor)
-{
-    auto* player = RE::PlayerCharacter::GetSingleton();
-
-    return actor &&
-           actor != player &&
-           actor->IsPlayerTeammate();
-}
-
-void ForEachFollower(const std::function<void(RE::Actor*, const RE::ActorHandle&)>& callback)
-{
-    auto* processLists = RE::ProcessLists::GetSingleton();
-
-    if (!processLists) {
-        return;
-    }
-
-    for (const auto& handle : processLists->highActorHandles) {
-        auto actorPtr = handle.get();
-
-        if (!actorPtr) {
-            continue;
-        }
-
-        auto* actor = actorPtr.get();
-
-        if (!IsFollower(actor)) {
-            continue;
-        }
-
-        callback(actor, handle);
-    }
-}
-
-
-// ------------------------------------------------------------
-// Aplicação e remoção dos efeitos
-// ------------------------------------------------------------
-// Métodos de aplicação e remoção de AVs Temporários
-bool AplicarEfeitos(RE::Actor* actor)
-{
-    if (!actor) {
-        return false;
-    }
-
-    actor->ModActorValue(
-        g_modificadorActorValue,
-        RE::ActorValue::kSneak,
-        g_sneakBoost
-    );
-
-    actor->ModActorValue(
-        g_modificadorActorValue,
-        RE::ActorValue::kInvisibility,
-        g_invisibilityBoost
-    );
-
-    return true;
-}
-
-bool RemoverEfeitos(RE::Actor* actor)
-{
-    if (!actor) {
-        return false;
-    }
-
-    actor->ModActorValue(
-        g_modificadorActorValue,
-        RE::ActorValue::kSneak,
-        -g_sneakBoost
-    );
-
-    actor->ModActorValue(
-        g_modificadorActorValue,
-        RE::ActorValue::kInvisibility,
-        -g_invisibilityBoost
-    );
-
-    return true;
-}
-
-bool SeguidorJaRegistrado(const RE::ActorHandle& handle)
-{
-    return std::find(
-        g_seguidores.begin(),
-        g_seguidores.end(),
-        handle
-    ) != g_seguidores.end();
-}
-
-void SincronizarSeguidores()
-{
-    ForEachFollower([](
-        RE::Actor* actor,
-        const RE::ActorHandle& handle)
+    std::string GetActorDisplayName(RE::Actor* actor)
     {
-        // Evita aplicar o efeito novamente no mesmo seguidor.
-        if (SeguidorJaRegistrado(handle)) {
-            return;
-        }
-
-        if (!AplicarEfeitos(actor)) {
-            return;
-        }
-
-        g_seguidores.push_back(handle);
-
-        const auto actorName = GetActorDisplayName(actor);
-
-        LogInfo(
-            actorName + " recebeu boost de sneak e invisibilidade",
-            actorName + " received sneak boost and invisibility"
-        );
-    });
-}
-
-void AtivarEfeitosSeguidores()
-{
-    if (g_stealthAtivado) {
-        return;
-    }
-
-    g_stealthAtivado = true;
-    g_seguidores.clear();
-
-    SincronizarSeguidores();
-}
-
-void DesativarEfeitosSeguidores()
-{
-    if (!g_stealthAtivado) {
-        return;
-    }
-
-    g_stealthAtivado = false;
-
-    for (const auto& handle : g_seguidores) {
-        auto actorPtr = handle.get();
-
-        if (!actorPtr) {
-            continue;
-        }
-
-        auto* actor = actorPtr.get();
-
         if (!actor) {
-            continue;
+            return VaiBrasa() ? "Ator desconhecido" : "Unknown actor";
         }
 
-        if (!RemoverEfeitos(actor)) {
-            continue;
+        const char* name = actor->GetName();
+
+        if (!name || name[0] == '\0') {
+            return VaiBrasa() ? "Ator sem nome" : "Unnamed actor";
         }
 
-        const auto actorName = GetActorDisplayName(actor);
-
-        LogInfo(
-            actorName + " perdeu boost de sneak e invisibilidade",
-            actorName + " lost sneak boost and invisibility"
-        );
+        return std::string(name);
     }
 
-    g_seguidores.clear();
-}
+    // ------------------------------------------------------------
+    // Busca de seguidores
+    // ------------------------------------------------------------
 
-
-// ------------------------------------------------------------
-// Eventos de animação
-// ------------------------------------------------------------
-
-class AnimationEventSink :
-    public RE::BSTEventSink<RE::BSAnimationGraphEvent>
-{
-public:
-    static AnimationEventSink* GetSingleton()
+    bool IsFollower(RE::Actor* actor)
     {
-        static AnimationEventSink singleton;
-        return std::addressof(singleton);
-    }
-    
-    RE::BSEventNotifyControl ProcessEvent(
-        const RE::BSAnimationGraphEvent* event,
-        RE::BSTEventSource<RE::BSAnimationGraphEvent>*)
-        override
-    {
-        if (!event) {
-            return RE::BSEventNotifyControl::kContinue;
-        }
-
         auto* player = RE::PlayerCharacter::GetSingleton();
 
-        if (!player || event->holder != player) {
+        return actor &&
+            actor != player &&
+            actor->IsPlayerTeammate();
+    }
+
+    void ForEachFollower(const std::function<void(RE::Actor*, const RE::ActorHandle&)>& callback)
+    {
+        auto* processLists = RE::ProcessLists::GetSingleton();
+
+        if (!processLists) {
+            return;
+        }
+
+        for (const auto& handle : processLists->highActorHandles) {
+            auto actorPtr = handle.get();
+
+            if (!actorPtr) {
+                continue;
+            }
+
+            auto* actor = actorPtr.get();
+
+            if (!IsFollower(actor)) {
+                continue;
+            }
+
+            callback(actor, handle);
+        }
+    }
+
+
+    // ------------------------------------------------------------
+    // Aplicação e remoção dos efeitos
+    // ------------------------------------------------------------
+    // Métodos de aplicação e remoção de AVs Temporários
+    bool AplicarEfeitos(RE::Actor* actor)
+    {
+        if (!actor) {
+            return false;
+        }
+
+        actor->ModActorValue(
+            g_modificadorActorValue,
+            RE::ActorValue::kSneak,
+            g_sneakBoost
+        );
+
+        actor->ModActorValue(
+            g_modificadorActorValue,
+            RE::ActorValue::kInvisibility,
+            g_invisibilityBoost
+        );
+
+        return true;
+    }
+
+    bool RemoverEfeitos(RE::Actor* actor)
+    {
+        if (!actor) {
+            return false;
+        }
+
+        actor->ModActorValue(
+            g_modificadorActorValue,
+            RE::ActorValue::kSneak,
+            -g_sneakBoost
+        );
+
+        actor->ModActorValue(
+            g_modificadorActorValue,
+            RE::ActorValue::kInvisibility,
+            -g_invisibilityBoost
+        );
+
+        return true;
+    }
+
+    bool SeguidorJaRegistrado(const RE::ActorHandle& handle)
+    {
+        return std::find(
+            g_seguidores.begin(),
+            g_seguidores.end(),
+            handle
+        ) != g_seguidores.end();
+    }
+
+    void SincronizarSeguidores()
+    {
+        ForEachFollower([](
+            RE::Actor* actor,
+            const RE::ActorHandle& handle)
+        {
+            // Evita aplicar o efeito novamente no mesmo seguidor.
+            if (SeguidorJaRegistrado(handle)) {
+                return;
+            }
+
+            if (!AplicarEfeitos(actor)) {
+                return;
+            }
+
+            g_seguidores.push_back(handle);
+
+            const auto actorName = GetActorDisplayName(actor);
+
+            LogInfo(
+                actorName + " recebeu boost de sneak e invisibilidade",
+                actorName + " received sneak boost and invisibility"
+            );
+        });
+    }
+
+    void AtivarEfeitosSeguidores()
+    {
+        if (g_stealthAtivado) {
+            return;
+        }
+
+        g_stealthAtivado = true;
+        g_seguidores.clear();
+
+        SincronizarSeguidores();
+    }
+
+    void DesativarEfeitosSeguidores()
+    {
+        if (!g_stealthAtivado) {
+            return;
+        }
+
+        g_stealthAtivado = false;
+
+        for (const auto& handle : g_seguidores) {
+            auto actorPtr = handle.get();
+
+            if (!actorPtr) {
+                continue;
+            }
+
+            auto* actor = actorPtr.get();
+
+            if (!actor) {
+                continue;
+            }
+
+            if (!RemoverEfeitos(actor)) {
+                continue;
+            }
+
+            const auto actorName = GetActorDisplayName(actor);
+
+            LogInfo(
+                actorName + " perdeu boost de sneak e invisibilidade",
+                actorName + " lost sneak boost and invisibility"
+            );
+        }
+
+        g_seguidores.clear();
+    }
+
+
+    // ------------------------------------------------------------
+    // Eventos de animação
+    // ------------------------------------------------------------
+
+    class AnimationEventSink :
+        public RE::BSTEventSink<RE::BSAnimationGraphEvent>
+    {
+    public:
+        static AnimationEventSink* GetSingleton()
+        {
+            static AnimationEventSink singleton;
+            return std::addressof(singleton);
+        }
+        
+        RE::BSEventNotifyControl ProcessEvent(
+            const RE::BSAnimationGraphEvent* event,
+            RE::BSTEventSource<RE::BSAnimationGraphEvent>*)
+            override
+        {
+            if (!event) {
+                return RE::BSEventNotifyControl::kContinue;
+            }
+
+            auto* player = RE::PlayerCharacter::GetSingleton();
+
+            if (!player || event->holder != player) {
+                return RE::BSEventNotifyControl::kContinue;
+            }
+
+            if constexpr (p_debug) {
+                const std::string tag = event->tag.c_str();
+
+                LogInfo(
+                    "Evento de animacao recebido: " + tag,
+                    "Animation event received: " + tag
+                );
+            }
+
+            const bool estaAgachado = player->IsSneaking();
+
+            if constexpr (p_debug) {
+                const std::string tag = event->tag.c_str();
+
+                LogInfo(
+                    "Evento de animacao recebido: " + tag,
+                    "Animation event received: " + tag
+                );
+            }
+
+            if constexpr (p_debug) {
+                LogInfo(
+                    "Estado do player: IsSneaking=" +
+                        std::string(estaAgachado ? "true" : "false") +
+                        ", g_stealthAtivado=" +
+                        std::string(g_stealthAtivado ? "true" : "false"),
+
+                    "Player state: IsSneaking=" +
+                        std::string(estaAgachado ? "true" : "false") +
+                        ", g_stealthAtivado=" +
+                        std::string(g_stealthAtivado ? "true" : "false")
+                );
+            }
+
+            if (estaAgachado) {
+                if (!g_stealthAtivado) {
+                    LogInfo("Sneak detectado", "Sneak detected");
+                    AtivarEfeitosSeguidores();
+                } else {
+                    SincronizarSeguidores();
+                }
+            }
+            else if (g_stealthAtivado) {
+                LogInfo("Saindo de sneak", "Exiting sneak");
+                DesativarEfeitosSeguidores();
+            }
+
             return RE::BSEventNotifyControl::kContinue;
         }
+    };
 
-        if constexpr (p_debug) {
-            const std::string tag = event->tag.c_str();
+    void RegisterAnimationEvents()
+    {
+        auto* player = RE::PlayerCharacter::GetSingleton();
 
-            LogInfo(
-                "Evento de animacao recebido: " + tag,
-                "Animation event received: " + tag
-            );
+        if (!player) {
+            LogErro("Player não encontrado", "Player not found");
+            return;
         }
 
-        const bool estaAgachado = player->IsSneaking();
+        player->RemoveAnimationGraphEventSink(AnimationEventSink::GetSingleton());
+        player->AddAnimationGraphEventSink(AnimationEventSink::GetSingleton());
 
-        if constexpr (p_debug) {
-            const std::string tag = event->tag.c_str();
-
-            LogInfo(
-                "Evento de animacao recebido: " + tag,
-                "Animation event received: " + tag
-            );
-        }
-
-        if constexpr (p_debug) {
-            LogInfo(
-                "Estado do player: IsSneaking=" +
-                    std::string(estaAgachado ? "true" : "false") +
-                    ", g_stealthAtivado=" +
-                    std::string(g_stealthAtivado ? "true" : "false"),
-
-                "Player state: IsSneaking=" +
-                    std::string(estaAgachado ? "true" : "false") +
-                    ", g_stealthAtivado=" +
-                    std::string(g_stealthAtivado ? "true" : "false")
-            );
-        }
-
-        if (estaAgachado) {
-            if (!g_stealthAtivado) {
-                LogInfo("Sneak detectado", "Sneak detected");
-                AtivarEfeitosSeguidores();
-            } else {
-                SincronizarSeguidores();
-            }
-        }
-        else if (g_stealthAtivado) {
-            LogInfo("Saindo de sneak", "Exiting sneak");
-            DesativarEfeitosSeguidores();
-        }
-
-        return RE::BSEventNotifyControl::kContinue;
+        LogInfo(
+            "AnimationGraphEvent registrado/re-registrado",
+            "AnimationGraphEvent registered/re-registered"
+        );
     }
-};
-
-void RegisterAnimationEvents()
-{
-    auto* player = RE::PlayerCharacter::GetSingleton();
-
-    if (!player) {
-        LogErro("Player não encontrado", "Player not found");
-        return;
-    }
-
-    player->RemoveAnimationGraphEventSink(AnimationEventSink::GetSingleton());
-    player->AddAnimationGraphEventSink(AnimationEventSink::GetSingleton());
-
-    LogInfo(
-        "AnimationGraphEvent registrado/re-registrado",
-        "AnimationGraphEvent registered/re-registered"
-    );
 }
-
 // ------------------------------------------------------------
 // Entrada principal do plugin
 // ------------------------------------------------------------
