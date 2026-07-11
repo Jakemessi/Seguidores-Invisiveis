@@ -47,17 +47,6 @@ configure_file(
     @ONLY
 )
 
-# Do CommonLib-NG
-#find_package(CommonLibSSE CONFIG REQUIRED)
-#
-#add_commonlibsse_plugin(${PROJECT_NAME}
-#    AUTHOR ${SKSSE_PLUGIN_AUTHOR}
-#    EMAIL ${SKSSE_PLUGIN_EMAIL}
-#    SOURCES
-#        src/plugin.cpp
-#        "${CMAKE_CURRENT_BINARY_DIR}/generated/PluginVersion.rc"
-#)
-
 # Do CommonLibSSE
 if(DEFINED CommonLibPath AND NOT "${CommonLibPath}" STREQUAL "" AND IS_DIRECTORY "${CommonLibPath}")
     add_subdirectory("${CommonLibPath}" "${CommonLibName}")
