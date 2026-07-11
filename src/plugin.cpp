@@ -9,8 +9,8 @@ bool g_stealthAtivado = false;
 constexpr bool p_debug = false;
 
 // Valores aplicados pelo plugin
-float g_sneakBoost = 1000.0f;
-float g_invisibilityBoost = 1.0f;
+constexpr float g_sneakBoost = 1000.0f;
+constexpr float g_invisibilityBoost = 1.0f;
 
 // Camada do Actor Value usada pelo plugin.
 // kTemporary indica que o boost deve ser tratado como modificador temporário,
