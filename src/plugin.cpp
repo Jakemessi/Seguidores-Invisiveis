@@ -39,6 +39,21 @@ namespace
         return std::string(name);
     }
 
+
+    // ------------------------------------------------------------
+    // Verificar se o jogador está invisivel
+    // ------------------------------------------------------------
+
+    bool JogadorEstaInvisivel()
+    {
+        auto* player = RE::PlayerCharacter::GetSingleton();
+
+        return player &&
+            player->HasEffectWithArchetype(
+                RE::EffectArchetype::kInvisibility
+            );
+    }
+
     // ------------------------------------------------------------
     // Busca de seguidores
     // ------------------------------------------------------------
@@ -207,11 +222,9 @@ namespace
         g_seguidores.clear();
     }
 
-
     // ------------------------------------------------------------
     // Eventos de animação
     // ------------------------------------------------------------
-
     class AnimationEventSink :
         public RE::BSTEventSink<RE::BSAnimationGraphEvent>
     {
@@ -247,15 +260,8 @@ namespace
             }
 
             const bool estaAgachado = player->IsSneaking();
-
-            if constexpr (p_debug) {
-                const std::string tag = event->tag.c_str();
-
-                LogInfo(
-                    "Evento de animacao recebido: " + tag,
-                    "Animation event received: " + tag
-                );
-            }
+            const bool estaInvisivel = JogadorEstaInvisivel();
+            const bool EstaEmStealth = estaAgachado || estaInvisivel;
 
             if constexpr (p_debug) {
                 LogInfo(
@@ -271,16 +277,40 @@ namespace
                 );
             }
 
-            if (estaAgachado) {
+            if(EstaEmStealth) {
                 if (!g_stealthAtivado) {
-                    LogInfo("Sneak detectado", "Sneak detected");
+
+                    if (estaAgachado && estaInvisivel) {
+                        LogInfo(
+                            "Sneak e invisibilidade detectados",
+                            "Sneak and invisibility detected"
+                        );
+                    }
+                    else if (estaAgachado) {
+                        LogInfo(
+                            "Sneak detectado",
+                            "Sneak detected"
+                        );
+                    }
+                    else {
+                        LogInfo(
+                            "Invisibilidade detectada",
+                            "Invisibility detected"
+                        );
+                    }
+
                     AtivarEfeitosSeguidores();
-                } else {
+                }
+                else {
                     SincronizarSeguidores();
                 }
             }
             else if (g_stealthAtivado) {
-                LogInfo("Saindo de sneak", "Exiting sneak");
+                LogInfo(
+                    "Saindo de stealth",
+                    "Exiting stealth"
+                );
+
                 DesativarEfeitosSeguidores();
             }
 
@@ -336,9 +366,9 @@ extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadIn
     IniciarLog();
 
     LogInfo(
-                ("Versão do Skyrim: {}", skse->RuntimeVersion().string()),
-                ("Skyrim version: {}", skse->RuntimeVersion().string())
-            );
+        "Versão do Skyrim: " + skse->RuntimeVersion().string(),
+        "Skyrim version: " + skse->RuntimeVersion().string()
+    );
 
     auto* messaging = SKSE::GetMessagingInterface();
 
