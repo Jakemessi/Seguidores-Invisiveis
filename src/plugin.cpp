@@ -205,11 +205,11 @@ namespace
                 RE::ACTOR_BASE_DATA::Flag::kDoesntAffectStealthMeter
             );
 
+            const auto actorName = GetActorDisplayName(actor);
+
             LogInfo(
-                std::string(actor->GetName()) +
-                    " não afeta mais o stealth meter",
-                std::string(actor->GetName()) +
-                    " no longer affects the stealth meter"
+                actorName + " não afeta mais o stealth meter",
+                actorName + " no longer affects the stealth meter"
             );
         }
     }
@@ -226,6 +226,9 @@ namespace
 
     void RemoverFlagsInvisibilidade()
     {
+        if (!g_flagInvisibilidadeAtiva && g_flagsStealth.empty()) {
+            return;
+        }
         for (const auto& registro : g_flagsStealth) {
             auto* actorBase = registro.actorBase;
 
@@ -392,13 +395,21 @@ namespace
                 LogInfo(
                     "Estado do player: IsSneaking=" +
                         std::string(estaAgachado ? "true" : "false") +
+                        ", IsInvisible=" +
+                        std::string(estaInvisivel ? "true" : "false") +
                         ", g_stealthAtivado=" +
-                        std::string(g_stealthAtivado ? "true" : "false"),
+                        std::string(g_stealthAtivado ? "true" : "false") +
+                        ", g_flagInvisibilidadeAtiva=" +
+                        std::string(g_flagInvisibilidadeAtiva ? "true" : "false"),
 
                     "Player state: IsSneaking=" +
                         std::string(estaAgachado ? "true" : "false") +
+                        ", IsInvisible=" +
+                        std::string(estaInvisivel ? "true" : "false") +
                         ", g_stealthAtivado=" +
-                        std::string(g_stealthAtivado ? "true" : "false")
+                        std::string(g_stealthAtivado ? "true" : "false") +
+                        ", g_flagInvisibilidadeAtiva=" +
+                        std::string(g_flagInvisibilidadeAtiva ? "true" : "false")
                 );
             }
 
