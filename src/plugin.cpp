@@ -10,6 +10,9 @@ namespace
     bool g_stealthAtivado = false;
     constexpr bool p_debug = false;
 
+    // Indica se as flags de invisibilidade estão atualmente aplicadas.
+    bool g_flagInvisibilidadeAtiva = false;
+
     // Valores aplicados pelo plugin
     constexpr float g_sneakBoost = 1000.0f;
     constexpr float g_invisibilityBoost = 1.0f;
@@ -23,6 +26,17 @@ namespace
     // ou diminuir durante a execução. Aqui ele guarda vários ActorHandle, ou seja,
     // referências seguras para os seguidores que receberam o efeito do plugin.
     std::vector<RE::ActorHandle> g_seguidores;
+
+    // Guarda o estado original da flag de cada ActorBase modificado.
+    // Isso permite restaurar exatamente o estado anterior quando
+    // a invisibilidade do jogador terminar.
+    struct SeguidorFlagStealth
+    {
+        RE::TESNPC* actorBase = nullptr;
+        bool jaNaoAfetavaStealth = false;
+    };
+
+    std::vector<SeguidorFlagStealth> g_flagsStealth;
 
     std::string GetActorDisplayName(RE::Actor* actor)
     {
@@ -148,6 +162,114 @@ namespace
         ) != g_seguidores.end();
     }
 
+    bool BaseFlagJaRegistrada(RE::TESNPC* actorBase)
+    {
+        if (!actorBase) {
+            return false;
+        }
+
+        return std::find_if(
+            g_flagsStealth.begin(),
+            g_flagsStealth.end(),
+            [actorBase](const SeguidorFlagStealth& registro)
+            {
+                return registro.actorBase == actorBase;
+            }
+        ) != g_flagsStealth.end();
+    }
+
+    void AplicarFlagNaoAfetaStealth(RE::Actor* actor)
+    {
+        if (!actor) {
+            return;
+        }
+
+        auto* actorBase = actor->GetActorBase();
+
+        if (!actorBase || BaseFlagJaRegistrada(actorBase)) {
+            return;
+        }
+
+        const bool jaNaoAfetavaStealth =
+            !actorBase->AffectsStealthMeter();
+
+        // Guarda o estado ANTES de modificá-lo.
+        g_flagsStealth.push_back({
+            actorBase,
+            jaNaoAfetavaStealth
+        });
+
+        // Só altera caso a flag ainda não estivesse presente.
+        if (!jaNaoAfetavaStealth) {
+            actorBase->actorData.actorBaseFlags.set(
+                RE::ACTOR_BASE_DATA::Flag::kDoesntAffectStealthMeter
+            );
+
+            LogInfo(
+                std::string(actor->GetName()) +
+                    " não afeta mais o stealth meter",
+                std::string(actor->GetName()) +
+                    " no longer affects the stealth meter"
+            );
+        }
+    }
+
+    void SincronizarFlagsInvisibilidade()
+    {
+        ForEachFollower([](
+            RE::Actor* actor,
+            const RE::ActorHandle&)
+        {
+            AplicarFlagNaoAfetaStealth(actor);
+        });
+    }
+
+    void RemoverFlagsInvisibilidade()
+    {
+        for (const auto& registro : g_flagsStealth) {
+            auto* actorBase = registro.actorBase;
+
+            if (!actorBase) {
+                continue;
+            }
+
+            // Só remove se foi o nosso plugin que adicionou.
+            if (!registro.jaNaoAfetavaStealth) {
+                actorBase->actorData.actorBaseFlags.reset(
+                    RE::ACTOR_BASE_DATA::Flag::kDoesntAffectStealthMeter
+                );
+            }
+        }
+
+        g_flagsStealth.clear();
+        g_flagInvisibilidadeAtiva = false;
+
+        LogInfo(
+            "Flags de stealth dos seguidores restauradas",
+            "Follower stealth flags restored"
+        );
+    }
+
+    void AtualizarFlagsInvisibilidade(bool estaInvisivel)
+    {
+        if (estaInvisivel) {
+            if (!g_flagInvisibilidadeAtiva) {
+                g_flagInvisibilidadeAtiva = true;
+                g_flagsStealth.clear();
+
+                LogInfo(
+                    "Invisibilidade detectada: seguidores não afetarão o stealth meter",
+                    "Invisibility detected: followers will not affect the stealth meter"
+                );
+            }
+
+            SincronizarFlagsInvisibilidade();
+        }
+        else if (g_flagInvisibilidadeAtiva) {
+            RemoverFlagsInvisibilidade();
+        }
+    }
+
     void SincronizarSeguidores()
     {
         ForEachFollower([](
@@ -261,6 +383,9 @@ namespace
 
             const bool estaAgachado = player->IsSneaking();
             const bool estaInvisivel = JogadorEstaInvisivel();
+
+            AtualizarFlagsInvisibilidade(estaInvisivel);
+
             const bool EstaEmStealth = estaAgachado || estaInvisivel;
 
             if constexpr (p_debug) {
@@ -400,14 +525,21 @@ extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadIn
 
             // Ativa os efeitos caso o save tenha sido carregado
             // com o jogador já agachado.
-            if (auto* player = RE::PlayerCharacter::GetSingleton();
-                player && player->IsSneaking()) {
-                AtivarEfeitosSeguidores();
+            if (auto* player = RE::PlayerCharacter::GetSingleton()) {
+                const bool estaAgachado = player->IsSneaking();
+                const bool estaInvisivel = JogadorEstaInvisivel();
+
+                AtualizarFlagsInvisibilidade(estaInvisivel);
+
+                if (estaAgachado || estaInvisivel) {
+                    AtivarEfeitosSeguidores();
+                }
             }
 
             break;
 
         case SKSE::MessagingInterface::kPreLoadGame:
+            RemoverFlagsInvisibilidade();
             DesativarEfeitosSeguidores();
             break;
 
