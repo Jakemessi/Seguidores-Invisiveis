@@ -62,8 +62,14 @@ namespace
     {
         auto* player = RE::PlayerCharacter::GetSingleton();
 
-        return player &&
-            player->HasEffectWithArchetype(
+        if (!player) {
+            return false;
+        }
+
+        auto* magicTarget = player->AsMagicTarget();
+
+        return magicTarget &&
+            magicTarget->HasEffectWithArchetype(
                 RE::EffectArchetype::kInvisibility
             );
     }
@@ -117,13 +123,19 @@ namespace
             return false;
         }
 
-        actor->ModActorValue(
+        auto* actorValueOwner = actor->AsActorValueOwner();
+
+        if (!actorValueOwner) {
+            return false;
+        }
+
+        actorValueOwner->RestoreActorValue(
             g_modificadorActorValue,
             RE::ActorValue::kSneak,
             g_sneakBoost
         );
 
-        actor->ModActorValue(
+        actorValueOwner->RestoreActorValue(
             g_modificadorActorValue,
             RE::ActorValue::kInvisibility,
             g_invisibilityBoost
@@ -138,13 +150,19 @@ namespace
             return false;
         }
 
-        actor->ModActorValue(
+        auto* actorValueOwner = actor->AsActorValueOwner();
+
+        if (!actorValueOwner) {
+            return false;
+        }
+
+        actorValueOwner->RestoreActorValue(
             g_modificadorActorValue,
             RE::ActorValue::kSneak,
             -g_sneakBoost
         );
 
-        actor->ModActorValue(
+        actorValueOwner->RestoreActorValue(
             g_modificadorActorValue,
             RE::ActorValue::kInvisibility,
             -g_invisibilityBoost
@@ -476,25 +494,6 @@ namespace
 // Entrada principal do plugin
 // ------------------------------------------------------------
 // Do CommonlibsSE
-extern "C" __declspec(dllexport) constinit auto SKSEPlugin_Version = []()
-{
-    SKSE::PluginVersionData v;
-
-    v.PluginVersion(REL::Version{
-        PLUGIN_VERSION_MAJOR,
-        PLUGIN_VERSION_MINOR,
-        PLUGIN_VERSION_PATCH,
-        PLUGIN_VERSION_BUILD
-    });
-    v.PluginName(PLUGIN_NAME);
-    v.AuthorName(PLUGIN_AUTHOR);
-    v.UsesAddressLibrary();
-    v.UsesNoStructs();
-    v.CompatibleVersions({ SKSE::RUNTIME_SSE_LATEST });
-
-    return v;
-}();
-
 extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* skse)
 {
     SKSE::Init(skse);
