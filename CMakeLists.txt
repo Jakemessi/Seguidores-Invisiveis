@@ -23,11 +23,6 @@ set(SKSSE_PLUGIN_EMAIL "nanaveine@gmail.com")
 set(OUTPUT_FOLDER "C:\\Users\\Huehuller\\Documents\\VSCode Projects\\Seguidores-Invisiveis\\")
 
 find_package(CommonLibSSE CONFIG REQUIRED)
-
-add_compile_definitions(
-    SKSE_SUPPORT_XBYAK
-)
-
 # Gera Version.h para o C++
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Version.h.in"
