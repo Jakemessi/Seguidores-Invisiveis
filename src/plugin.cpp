@@ -129,13 +129,13 @@ namespace
             return false;
         }
 
-        actorValueOwner->RestoreActorValue(
+        actorValueOwner->ModActorValue(
             g_modificadorActorValue,
             RE::ActorValue::kSneak,
             g_sneakBoost
         );
 
-        actorValueOwner->RestoreActorValue(
+        actorValueOwner->ModActorValue(
             g_modificadorActorValue,
             RE::ActorValue::kInvisibility,
             g_invisibilityBoost
@@ -156,13 +156,13 @@ namespace
             return false;
         }
 
-        actorValueOwner->RestoreActorValue(
+        actorValueOwner->ModActorValue(
             g_modificadorActorValue,
             RE::ActorValue::kSneak,
             -g_sneakBoost
         );
 
-        actorValueOwner->RestoreActorValue(
+        actorValueOwner->ModActorValue(
             g_modificadorActorValue,
             RE::ActorValue::kInvisibility,
             -g_invisibilityBoost

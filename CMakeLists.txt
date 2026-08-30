@@ -22,7 +22,18 @@ set(SKSSE_PLUGIN_EMAIL "nanaveine@gmail.com")
 
 set(OUTPUT_FOLDER "C:\\Users\\Huehuller\\Documents\\VSCode Projects\\Seguidores-Invisiveis\\")
 
-find_package(CommonLibSSE CONFIG REQUIRED)
+# CommonLibSSE-NG do alandtse
+set(BUILD_TESTS OFF CACHE BOOL "Disable CommonLibSSE-NG tests" FORCE)
+
+add_subdirectory(
+    "${CMAKE_CURRENT_SOURCE_DIR}/extern/CommonLibSSE-NG"
+    "${CMAKE_CURRENT_BINARY_DIR}/CommonLibSSE-NG"
+)
+
+include(
+    "${CMAKE_CURRENT_SOURCE_DIR}/extern/CommonLibSSE-NG/cmake/CommonLibSSE.cmake"
+)
+
 # Gera Version.h para o C++
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Version.h.in"
