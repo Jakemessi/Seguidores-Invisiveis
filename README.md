@@ -1,24 +1,44 @@
-# Um plugin SKSE, Seguidores Invisíveis
+# Seguidores Invisíveis
 
-Meu primeiro pulgin SKSE para Skyrim Special Edition
+Meu primeiro plugin SKSE para Skyrim.
+
+Versão atual: **6.0.0**
 
 ---
-- [Compatibilidade](#Compatibilidade)
-- [Oque este plugin faz?](#Oque-este-plugin-faz)
-- [CommonLibSSE](#commonlibsse)
+
+- [Compatibilidade](#compatibilidade)
+- [O que este plugin faz?](#o-que-este-plugin-faz)
+- [CommonLibSSE-NG](#commonlibsse-ng)
 
 ## Compatibilidade
 
-Testado no Skyrim Anniversary Edition 1.6.1170 com a versão correspondente do SKSE e da Address Library.
+O plugin é compilado com o CommonLibSSE-NG em modo multi-runtime, com suporte de build para:
 
-# Oque este plugin faz?
+- Skyrim Special Edition (SE)
+- Skyrim Anniversary Edition (AE)
+- Skyrim VR
 
-Este mod para Skyrim Special Edition, faz com que quando o jogador agachar, isto é, entrar no estado de stealth, ele faz com que os seus seguidores se tornem praticamente invisíveis aos inimigos.
+O último runtime em que o funcionamento do plugin foi efetivamente testado foi o Skyrim Anniversary Edition **1.6.1170**, utilizando as versões correspondentes do SKSE e da Address Library.
 
-# CommonLibSSE
+Versões mais recentes, incluindo a linha **1.7.x**, ainda não foram validadas em jogo e não devem ser consideradas oficialmente suportadas até que os testes sejam concluídos.
 
-Este plugin utiliza a biblioteca [CommonLibSSE](https://github.com/powerof3/CommonLibSSE), mantida pelo fork de [powerof3](https://github.com/powerof3), como base para integração com SKSE e acesso às estruturas internas do Skyrim Special Edition / Anniversary Edition.
+## O que este plugin faz?
 
-A `CommonLibSSE` é uma biblioteca C++ voltada ao desenvolvimento de plugins SKSE, permitindo interagir com classes, eventos, sistemas e funções internas do jogo de forma mais organizada e segura do que trabalhar diretamente com endereços brutos.
+Este mod faz com que, quando o jogador entra em stealth, seus seguidores também recebam ajustes para reduzir drasticamente a capacidade dos inimigos de detectá-los.
 
-Este projeto foi desenvolvido com foco no Skyrim Special Edition / Anniversary Edition, utilizando Address Library e SKSE.
+O estado de stealth considerado pelo plugin inclui:
+
+- jogador agachado;
+- jogador sob efeito de invisibilidade.
+
+Durante a invisibilidade do jogador, os seguidores também recebem temporariamente o comportamento **Doesn't Affect Stealth Meter**, com o estado original restaurado quando a invisibilidade termina.
+
+## CommonLibSSE-NG
+
+Este plugin utiliza o [CommonLibSSE-NG](https://github.com/CharmedBaryon/CommonLibSSE-NG) como base para integração com SKSE e acesso às estruturas internas do Skyrim.
+
+A biblioteca é integrada ao projeto através do **vcpkg**, e o plugin é compilado utilizando o modo multi-runtime para Skyrim SE, AE e VR.
+
+O CommonLibSSE-NG fornece abstrações para trabalhar com diferentes runtimes do Skyrim e reduz a necessidade de acessar diretamente endereços e estruturas internas específicas de uma única versão do jogo.
+
+Este projeto utiliza **SKSE** e **Address Library**.

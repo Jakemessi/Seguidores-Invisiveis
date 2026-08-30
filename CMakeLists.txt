@@ -8,13 +8,13 @@ cmake_minimum_required(VERSION 3.21)
 
 if(DEFINED ENV{VCPKG_ROOT})
     set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
-    set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
+    set(VCPKG_TARGET_TRIPLET "x64-windows-static-md" CACHE STRING "")
 else()
     message(WARNING "VCPKG_ROOT não está definido. O CMake pode não encontrar as dependências.")
 endif()
 
 # Set your project name. This will be the name of your SKSE .dll file.
-project(InvisibilityAffectsFollowersToo VERSION 5.4.3.0 LANGUAGES CXX RC)
+project(InvisibilityAffectsFollowersToo VERSION 6.0.0.0 LANGUAGES CXX RC)
 # Major . Minor . Patch . Tweak
 
 set(SKSSE_PLUGIN_AUTHOR "Huehuller")
@@ -22,17 +22,7 @@ set(SKSSE_PLUGIN_EMAIL "nanaveine@gmail.com")
 
 set(OUTPUT_FOLDER "C:\\Users\\Huehuller\\Documents\\VSCode Projects\\Seguidores-Invisiveis\\")
 
-set(CommonLibName "CommonLibSSE")
-set(CommonLibPath "${CMAKE_CURRENT_SOURCE_DIR}/extern/CommonLibSSE")
-
-# Definições para Skyrim AE / Address Library / Xbyak
-add_compile_definitions(
-    SKYRIM_AE
-    SKYRIM_SUPPORT_AE
-    SKSE_SUPPORT_XBYAK
-)
-
-
+find_package(CommonLibSSE CONFIG REQUIRED)
 # Gera Version.h para o C++
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Version.h.in"
@@ -47,15 +37,11 @@ configure_file(
     @ONLY
 )
 
-# Do CommonLibSSE
-if(DEFINED CommonLibPath AND NOT "${CommonLibPath}" STREQUAL "" AND IS_DIRECTORY "${CommonLibPath}")
-    add_subdirectory("${CommonLibPath}" "${CommonLibName}")
-else()
-    message(FATAL_ERROR "CommonLibPath inválido. Verifique se extern/CommonLibSSE existe.")
-endif()
-
-add_library(${PROJECT_NAME}
-    SHARED
+add_commonlibsse_plugin(${PROJECT_NAME}
+    AUTHOR ${SKSSE_PLUGIN_AUTHOR}
+    EMAIL ${SKSSE_PLUGIN_EMAIL}
+    USE_ADDRESS_LIBRARY
+    SOURCES
         src/plugin.cpp
         src/Logger.cpp
         src/PCH.h
@@ -63,12 +49,6 @@ add_library(${PROJECT_NAME}
         "${CMAKE_CURRENT_BINARY_DIR}/generated/Version.h"
         "${CMAKE_CURRENT_BINARY_DIR}/generated/PluginVersion.rc"
 )
-
-target_link_libraries(${PROJECT_NAME}
-    PRIVATE
-        ${CommonLibName}::${CommonLibName}
-)
-#-------
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
 target_precompile_headers(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/PCH.h")
