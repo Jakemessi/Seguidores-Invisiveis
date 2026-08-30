@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.21)
 
 if(DEFINED ENV{VCPKG_ROOT})
     set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
-    set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
+    set(VCPKG_TARGET_TRIPLET "x64-windows-static-md" CACHE STRING "")
 else()
     message(WARNING "VCPKG_ROOT não está definido. O CMake pode não encontrar as dependências.")
 endif()
