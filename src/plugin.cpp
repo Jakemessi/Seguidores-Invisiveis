@@ -490,10 +490,8 @@ namespace
         );
     }
 }
-// ------------------------------------------------------------
-// Entrada principal do plugin
-// ------------------------------------------------------------
-// Do CommonlibsSE
+
+// Entrada carregada pelo SKSE; metadados do plugin são gerados pelo CommonLibSSE-NG.
 extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* skse)
 {
     SKSE::Init(skse);
