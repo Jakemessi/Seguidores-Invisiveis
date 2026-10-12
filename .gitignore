@@ -1,8 +1,8 @@
+
 # This file specifies files / folders which will be ignored by git.
 #
 # If you want to add one of these files to git, either remove the matching line from this
 # file or force add the file/folder into git using `git -f add [path]`
-
 
 # IDE / text editor profile files
 .idea
@@ -15,5 +15,20 @@ build
 cmake-build*
 *.dll
 *.pdb
+
 # Skyrim archive files
 *.bsa
+
+# Locally generated Nexus distribution package
+/Nexus/Invisibility affects followers too.zip
+
+# Skyrim plugin backups
+*.esp.backup
+*.esp.save.*
+
+# Local Papyrus compiler configuration and intermediate output
+PapyrusGamePath.txt
+_PapyrusBuild/
+
+# Disabled SkyPatcher configuration files
+*.ini.disabled
