@@ -22,21 +22,16 @@ namespace
     // em vez de uma alteração permanente no valor do ator, assim sendo até mais fácil de remover.
     constexpr RE::ACTOR_VALUE_MODIFIER g_modificadorActorValue = RE::ACTOR_VALUE_MODIFIER::kTemporary;
 
-    // std::vector é uma lista dinâmica: diferente de um array comum, ele pode crescer
-    // ou diminuir durante a execução. Aqui ele guarda vários ActorHandle, ou seja,
-    // referências seguras para os seguidores que receberam o efeito do plugin.
-    std::vector<RE::ActorHandle> g_seguidores;
+    // Ator individual, nunca o ActorBase compartilhado com NPCs comuns.
+    std::vector<RE::ActorHandle> g_aliados;
 
-    // Guarda o estado original da flag de cada ActorBase modificado.
-    // Isso permite restaurar exatamente o estado anterior quando
-    // a invisibilidade do jogador terminar.
-    struct SeguidorFlagStealth
+    struct AliadoFlagStealth
     {
-        RE::TESNPC* actorBase = nullptr;
-        bool jaNaoAfetavaStealth = false;
+        RE::ActorHandle handle;
+        bool jaNaoApareciaNoStealthMeter = false;
     };
 
-    std::vector<SeguidorFlagStealth> g_flagsStealth;
+    std::vector<AliadoFlagStealth> g_flagsStealth;
 
     std::string GetActorDisplayName(RE::Actor* actor)
     {
@@ -81,34 +76,47 @@ namespace
     bool IsFollower(RE::Actor* actor)
     {
         auto* player = RE::PlayerCharacter::GetSingleton();
-
-        return actor &&
-            actor != player &&
-            actor->IsPlayerTeammate();
+        return actor && actor != player && actor->IsPlayerTeammate();
     }
 
-    void ForEachFollower(const std::function<void(RE::Actor*, const RE::ActorHandle&)>& callback)
+    // Invocações, comandados e reanimados pertencentes ao jogador ou a seguidores.
+    // Um NPC amigável sem essa relação não entra no filtro.
+    bool IsInvocacaoAliada(RE::Actor* actor)
+    {
+        if (!actor || (!actor->IsSummoned() && !actor->IsCommandedActor())) {
+            return false;
+        }
+
+        auto comandante = actor->GetCommandingActor();
+        auto* dono = comandante.get();
+        auto* player = RE::PlayerCharacter::GetSingleton();
+
+        return dono && dono != actor &&
+            (dono == player || IsFollower(dono));
+    }
+
+    bool IsAliado(RE::Actor* actor)
+    {
+        return IsFollower(actor) || IsInvocacaoAliada(actor);
+    }
+
+    void ForEachAliado(const std::function<void(RE::Actor*, const RE::ActorHandle&)>& callback)
     {
         auto* processLists = RE::ProcessLists::GetSingleton();
-
         if (!processLists) {
             return;
         }
 
         for (const auto& handle : processLists->highActorHandles) {
             auto actorPtr = handle.get();
-
             if (!actorPtr) {
                 continue;
             }
 
             auto* actor = actorPtr.get();
-
-            if (!IsFollower(actor)) {
-                continue;
+            if (IsAliado(actor)) {
+                callback(actor, handle);
             }
-
-            callback(actor, handle);
         }
     }
 
@@ -171,74 +179,61 @@ namespace
         return true;
     }
 
-    bool SeguidorJaRegistrado(const RE::ActorHandle& handle)
+    bool AliadoJaRegistrado(const RE::ActorHandle& handle)
     {
-        return std::find(
-            g_seguidores.begin(),
-            g_seguidores.end(),
-            handle
-        ) != g_seguidores.end();
+        return std::find(g_aliados.begin(), g_aliados.end(), handle) != g_aliados.end();
     }
 
-    bool BaseFlagJaRegistrada(RE::TESNPC* actorBase)
+    bool FlagJaRegistrada(const RE::ActorHandle& handle)
     {
-        if (!actorBase) {
-            return false;
-        }
-
         return std::find_if(
-            g_flagsStealth.begin(),
-            g_flagsStealth.end(),
-            [actorBase](const SeguidorFlagStealth& registro)
-            {
-                return registro.actorBase == actorBase;
+            g_flagsStealth.begin(), g_flagsStealth.end(),
+            [&handle](const AliadoFlagStealth& registro) {
+                return registro.handle == handle;
             }
         ) != g_flagsStealth.end();
     }
 
-    void AplicarFlagNaoAfetaStealth(RE::Actor* actor)
+    void AplicarFlagNaoAfetaStealth(RE::Actor* actor, const RE::ActorHandle& handle)
     {
-        if (!actor) {
+        if (!actor || FlagJaRegistrada(handle)) {
             return;
         }
 
-        auto* actorBase = actor->GetActorBase();
+        // Flag por instância: não modifica o TESNPC compartilhado por outros NPCs.
+        auto& flags = actor->GetActorRuntimeData().boolFlags;
+        constexpr auto flag = RE::Actor::BOOL_FLAGS::kDoNotShowOnStealthMeter;
+        const bool jaNaoAparecia = flags.all(flag);
+        g_flagsStealth.push_back({ handle, jaNaoAparecia });
 
-        if (!actorBase || BaseFlagJaRegistrada(actorBase)) {
-            return;
+        if (!jaNaoAparecia) {
+            flags.set(flag);
         }
 
-        const bool jaNaoAfetavaStealth =
-            !actorBase->AffectsStealthMeter();
-
-        // Guarda o estado ANTES de modificá-lo.
-        g_flagsStealth.push_back({
-            actorBase,
-            jaNaoAfetavaStealth
-        });
-
-        // Só altera caso a flag ainda não estivesse presente.
-        if (!jaNaoAfetavaStealth) {
-            actorBase->actorData.actorBaseFlags.set(
-                RE::ACTOR_BASE_DATA::Flag::kDoesntAffectStealthMeter
-            );
-
-            const auto actorName = GetActorDisplayName(actor);
-
-            LogInfo(
-                actorName + " não afeta mais o stealth meter",
-                actorName + " no longer affects the stealth meter"
-            );
-        }
+        const auto nome = GetActorDisplayName(actor);
+        LogInfo(nome + " nao afeta mais o stealth meter",
+                nome + " no longer affects the stealth meter");
     }
 
     void SincronizarFlagsInvisibilidade()
     {
-        ForEachFollower([](
-            RE::Actor* actor,
-            const RE::ActorHandle&)
-        {
-            AplicarFlagNaoAfetaStealth(actor);
+        constexpr auto flag = RE::Actor::BOOL_FLAGS::kDoNotShowOnStealthMeter;
+
+        // Uma reanimação pode perder o comandante antes do fim da invisibilidade.
+        for (auto it = g_flagsStealth.begin(); it != g_flagsStealth.end();) {
+            auto actorPtr = it->handle.get();
+            if (actorPtr && !IsAliado(actorPtr.get())) {
+                if (!it->jaNaoApareciaNoStealthMeter) {
+                    actorPtr->GetActorRuntimeData().boolFlags.reset(flag);
+                }
+                it = g_flagsStealth.erase(it);
+            } else {
+                ++it;
+            }
+        }
+
+        ForEachAliado([](RE::Actor* actor, const RE::ActorHandle& handle) {
+            AplicarFlagNaoAfetaStealth(actor, handle);
         });
     }
 
@@ -247,28 +242,20 @@ namespace
         if (!g_flagInvisibilidadeAtiva && g_flagsStealth.empty()) {
             return;
         }
+
+        constexpr auto flag = RE::Actor::BOOL_FLAGS::kDoNotShowOnStealthMeter;
         for (const auto& registro : g_flagsStealth) {
-            auto* actorBase = registro.actorBase;
-
-            if (!actorBase) {
-                continue;
-            }
-
-            // Só remove se foi o nosso plugin que adicionou.
-            if (!registro.jaNaoAfetavaStealth) {
-                actorBase->actorData.actorBaseFlags.reset(
-                    RE::ACTOR_BASE_DATA::Flag::kDoesntAffectStealthMeter
-                );
+            auto actorPtr = registro.handle.get();
+            if (actorPtr && !registro.jaNaoApareciaNoStealthMeter) {
+                actorPtr->GetActorRuntimeData().boolFlags.reset(flag);
             }
         }
 
         g_flagsStealth.clear();
         g_flagInvisibilidadeAtiva = false;
 
-        LogInfo(
-            "Flags de stealth dos seguidores restauradas",
-            "Follower stealth flags restored"
-        );
+        LogInfo("Flags de stealth dos aliados restauradas",
+                "Ally stealth flags restored");
     }
 
     void AtualizarFlagsInvisibilidade(bool estaInvisivel)
@@ -279,8 +266,8 @@ namespace
                 g_flagsStealth.clear();
 
                 LogInfo(
-                    "Invisibilidade detectada: seguidores não afetarão o stealth meter",
-                    "Invisibility detected: followers will not affect the stealth meter"
+                    "Invisibilidade detectada: aliados nao afetarao o stealth meter",
+                    "Invisibility detected: allies will not affect the stealth meter"
                 );
             }
 
@@ -293,27 +280,26 @@ namespace
 
     void SincronizarSeguidores()
     {
-        ForEachFollower([](
-            RE::Actor* actor,
-            const RE::ActorHandle& handle)
-        {
-            // Evita aplicar o efeito novamente no mesmo seguidor.
-            if (SeguidorJaRegistrado(handle)) {
+        // Descarta comandados que deixaram de pertencer ao jogador/grupo.
+        for (auto it = g_aliados.begin(); it != g_aliados.end();) {
+            auto actorPtr = it->get();
+            if (actorPtr && !IsAliado(actorPtr.get())) {
+                RemoverEfeitos(actorPtr.get());
+                it = g_aliados.erase(it);
+            } else {
+                ++it;
+            }
+        }
+
+        ForEachAliado([](RE::Actor* actor, const RE::ActorHandle& handle) {
+            if (AliadoJaRegistrado(handle) || !AplicarEfeitos(actor)) {
                 return;
             }
 
-            if (!AplicarEfeitos(actor)) {
-                return;
-            }
-
-            g_seguidores.push_back(handle);
-
-            const auto actorName = GetActorDisplayName(actor);
-
-            LogInfo(
-                actorName + " recebeu boost de sneak e invisibilidade",
-                actorName + " received sneak boost and invisibility"
-            );
+            g_aliados.push_back(handle);
+            const auto nome = GetActorDisplayName(actor);
+            LogInfo(nome + " recebeu boost de furtividade",
+                    nome + " received sneak boost");
         });
     }
 
@@ -324,7 +310,7 @@ namespace
         }
 
         g_stealthAtivado = true;
-        g_seguidores.clear();
+        g_aliados.clear();
 
         SincronizarSeguidores();
     }
@@ -337,7 +323,7 @@ namespace
 
         g_stealthAtivado = false;
 
-        for (const auto& handle : g_seguidores) {
+        for (const auto& handle : g_aliados) {
             auto actorPtr = handle.get();
 
             if (!actorPtr) {
@@ -357,12 +343,84 @@ namespace
             const auto actorName = GetActorDisplayName(actor);
 
             LogInfo(
-                actorName + " perdeu boost de sneak e invisibilidade",
-                actorName + " lost sneak boost and invisibility"
+                actorName + " perdeu boost de furtividade",
+                actorName + " lost sneak boost"
             );
         }
 
-        g_seguidores.clear();
+        g_aliados.clear();
+    }
+
+    // Atualiza novas criaturas enquanto a furtividade já está ativada.
+    void SincronizarAliadosAtivos()
+    {
+        if (g_stealthAtivado) {
+            SincronizarSeguidores();
+        }
+        if (g_flagInvisibilidadeAtiva) {
+            SincronizarFlagsInvisibilidade();
+        }
+    }
+
+    class AllyEventSink :
+        public RE::BSTEventSink<RE::TESObjectLoadedEvent>,
+        public RE::BSTEventSink<RE::TESMagicEffectApplyEvent>
+    {
+    public:
+        static AllyEventSink* GetSingleton()
+        {
+            static AllyEventSink singleton;
+            return std::addressof(singleton);
+        }
+
+        RE::BSEventNotifyControl ProcessEvent(
+            const RE::TESObjectLoadedEvent* event,
+            RE::BSTEventSource<RE::TESObjectLoadedEvent>*) override
+        {
+            if (!event || !event->loaded ||
+                (!g_stealthAtivado && !g_flagInvisibilidadeAtiva)) {
+                return RE::BSEventNotifyControl::kContinue;
+            }
+
+            auto* actor = RE::TESForm::LookupByID<RE::Actor>(event->formID);
+            if (IsAliado(actor)) {
+                SincronizarAliadosAtivos();
+            }
+            return RE::BSEventNotifyControl::kContinue;
+        }
+
+        RE::BSEventNotifyControl ProcessEvent(
+            const RE::TESMagicEffectApplyEvent* event,
+            RE::BSTEventSource<RE::TESMagicEffectApplyEvent>*) override
+        {
+            if (!event || (!g_stealthAtivado && !g_flagInvisibilidadeAtiva)) {
+                return RE::BSEventNotifyControl::kContinue;
+            }
+
+            auto* caster = event->caster ? event->caster->As<RE::Actor>() : nullptr;
+            auto* target = event->target ? event->target->As<RE::Actor>() : nullptr;
+            auto* player = RE::PlayerCharacter::GetSingleton();
+
+            if (IsAliado(target) || caster == player || IsFollower(caster)) {
+                SincronizarAliadosAtivos();
+            }
+
+            return RE::BSEventNotifyControl::kContinue;
+        }
+    };
+
+    void RegisterAllyEvents()
+    {
+        auto* sources = RE::ScriptEventSourceHolder::GetSingleton();
+        if (!sources) {
+            LogErro("Fontes de evento indisponiveis", "Event sources unavailable");
+            return;
+        }
+
+        sources->RemoveEventSink<RE::TESObjectLoadedEvent>(AllyEventSink::GetSingleton());
+        sources->RemoveEventSink<RE::TESMagicEffectApplyEvent>(AllyEventSink::GetSingleton());
+        sources->AddEventSink<RE::TESObjectLoadedEvent>(AllyEventSink::GetSingleton());
+        sources->AddEventSink<RE::TESMagicEffectApplyEvent>(AllyEventSink::GetSingleton());
     }
 
     // ------------------------------------------------------------
@@ -530,6 +588,7 @@ extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadIn
             );
 
             RegisterAnimationEvents();
+            RegisterAllyEvents();
 
             // Ativa os efeitos caso o save tenha sido carregado
             // com o jogador já agachado.
