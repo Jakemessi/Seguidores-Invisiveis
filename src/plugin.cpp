@@ -1,6 +1,7 @@
 #include "PCH.h"
 #include "Version.h"
 #include "Logger.h"
+#include "CombatLock.h"
 
 #include <algorithm>
 
@@ -385,6 +386,7 @@ namespace
             auto* actor = RE::TESForm::LookupByID<RE::Actor>(event->formID);
             if (IsAliado(actor)) {
                 SincronizarAliadosAtivos();
+                IAFT::AtualizarControleCombate();
             }
             return RE::BSEventNotifyControl::kContinue;
         }
@@ -403,6 +405,7 @@ namespace
 
             if (IsAliado(target) || caster == player || IsFollower(caster)) {
                 SincronizarAliadosAtivos();
+                IAFT::AtualizarControleCombate();
             }
 
             return RE::BSEventNotifyControl::kContinue;
@@ -581,6 +584,7 @@ extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadIn
             );
             break;
 
+        case SKSE::MessagingInterface::kNewGame:
         case SKSE::MessagingInterface::kPostLoadGame:
             LogInfo(
                 "InvisibilityAffectsFollowersToo carregado",
@@ -589,6 +593,7 @@ extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadIn
 
             RegisterAnimationEvents();
             RegisterAllyEvents();
+            IAFT::IniciarControleCombate(IsInvocacaoAliada);
 
             // Ativa os efeitos caso o save tenha sido carregado
             // com o jogador já agachado.
@@ -606,6 +611,7 @@ extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadIn
             break;
 
         case SKSE::MessagingInterface::kPreLoadGame:
+            IAFT::PararControleCombate();
             RemoverFlagsInvisibilidade();
             DesativarEfeitosSeguidores();
             break;
