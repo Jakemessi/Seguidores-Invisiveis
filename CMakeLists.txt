@@ -54,6 +54,8 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     USE_ADDRESS_LIBRARY
     SOURCES
         src/plugin.cpp
+        src/CombatLock.cpp
+        src/CombatLock.h
         src/Logger.cpp
         src/PCH.h
         src/Logger.h
