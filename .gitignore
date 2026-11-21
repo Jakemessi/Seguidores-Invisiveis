@@ -32,3 +32,5 @@ _PapyrusBuild/
 
 # Disabled SkyPatcher configuration files
 *.ini.disabled
+
+*.patch

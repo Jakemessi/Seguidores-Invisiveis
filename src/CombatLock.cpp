@@ -20,6 +20,10 @@ namespace IAFT
             RE::ActorHandle handle;
             bool ataqueJaDesabilitado = false;
             bool conjuracaoJaDesabilitada = false;
+            float agressividadeOriginal = 0.0f;
+            float assistenciaOriginal = 0.0f;
+            bool agressividadeAlterada = false;
+            bool assistenciaAlterada = false;
         };
 
         std::vector<Bloqueio> g_bloqueios;
@@ -52,6 +56,19 @@ namespace IAFT
             }
             if (!bloqueio.conjuracaoJaDesabilitada) {
                 flags.reset(kConjuracaoDesabilitada);
+            }
+
+            // Restaura apenas os AVs modificados pela DLL. Se outro mod
+            // alterou o valor enquanto estava bloqueado, respeita a alteracao.
+            if (bloqueio.agressividadeAlterada &&
+                ator->GetActorValue(RE::ActorValue::kAggression) == 0.0f) {
+                ator->SetActorValue(RE::ActorValue::kAggression,
+                                    bloqueio.agressividadeOriginal);
+            }
+            if (bloqueio.assistenciaAlterada &&
+                ator->GetActorValue(RE::ActorValue::kAssistance) == 0.0f) {
+                ator->SetActorValue(RE::ActorValue::kAssistance,
+                                    bloqueio.assistenciaOriginal);
             }
         }
 
@@ -106,6 +123,24 @@ namespace IAFT
 
                 flags.set(kAtaqueDesabilitado);
                 flags.set(kConjuracaoDesabilitada);
+
+                // Enquanto o combate esta bloqueado, a invocacao nao deve
+                // iniciar hostilidades nem entrar para ajudar outros atores.
+                // Os valores originais pertencem a esta instancia do ator.
+                auto& bloqueio = g_bloqueios.back();
+                bloqueio.agressividadeOriginal =
+                    ator->GetActorValue(RE::ActorValue::kAggression);
+                bloqueio.assistenciaOriginal =
+                    ator->GetActorValue(RE::ActorValue::kAssistance);
+
+                if (bloqueio.agressividadeOriginal != 0.0f) {
+                    ator->SetActorValue(RE::ActorValue::kAggression, 0.0f);
+                    bloqueio.agressividadeAlterada = true;
+                }
+                if (bloqueio.assistenciaOriginal != 0.0f) {
+                    ator->SetActorValue(RE::ActorValue::kAssistance, 0.0f);
+                    bloqueio.assistenciaAlterada = true;
+                }
             }
         }
 
