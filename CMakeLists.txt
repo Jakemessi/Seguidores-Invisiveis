@@ -14,7 +14,7 @@ else()
 endif()
 
 # Set your project name. This will be the name of your SKSE .dll file.
-project(InvisibilityAffectsFollowersToo VERSION 6.2.0.0 LANGUAGES CXX RC)
+project(InvisibilityAffectsFollowersToo VERSION 6.3.0.0 LANGUAGES CXX RC)
 # Major . Minor . Patch . Tweak
 
 set(SKSSE_PLUGIN_AUTHOR "Huehuller")
@@ -54,6 +54,8 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     USE_ADDRESS_LIBRARY
     SOURCES
         src/plugin.cpp
+        src/CombatLock.cpp
+        src/CombatLock.h
         src/Logger.cpp
         src/PCH.h
         src/Logger.h
