@@ -55,7 +55,7 @@ VAI CORINTHIANS</description>
 				<group name="DLL" type="SelectAny"> 
 					<plugins order="Explicit"> 
 						<plugin name="Install DLL"> 
-							<description>DLL version 6.3.0: improves stealth behavior for followers and allied summons/reanimated actors. Allied summons cannot attack or cast while the player remains undetected and out of combat. Combat is unlocked when an enemy detects the player or combat starts, and remains unlocked until nearby hostile combat ends. Requires a compatible SKSE and Address Library.</description> 
+							<description>DLL version 6.3.1: improves stealth behavior for followers and allied summons/reanimated actors. Allied summons cannot attack or cast while the player remains undetected and out of combat. Combat is unlocked when an enemy detects the player or combat starts, and remains unlocked until nearby hostile combat ends. Requires a compatible SKSE and Address Library.</description> 
 							<image path="fomod\photos\Babu.png" /> 
 							<files> 
 								<file source="InvisibilityAffectsFollowersToo.dll" destination="SKSE\Plugins\InvisibilityAffectsFollowersToo.dll" priority="0" /> 
