@@ -28,9 +28,10 @@ namespace IAFT
 
         // O monitor apenas agenda tarefas. Todos os acessos a atores/flags
         // acontecem nas tarefas da thread principal do Skyrim.
-        std::jthread g_monitor;
         std::atomic<std::uint64_t> g_geracao{ 0 };
         std::atomic<bool> g_tarefaPendente{ false };
+        // Declarado por ultimo para ser destruido primeiro no encerramento.
+        std::jthread g_monitor;
 
         bool EInvocacaoAliada(RE::Actor* actor)
         {
