@@ -14,4 +14,6 @@ namespace IAFT
     void IniciarControleCombate(std::function<bool(RE::Actor*)> a_eInvocacaoAliada);
     void AtualizarControleCombate();
     void PararControleCombate();
+    // Mantem os valores originais dos AVs no co-save SKSE, inclusive apos carregar.
+    void RegistrarSerializacaoAV();
 }

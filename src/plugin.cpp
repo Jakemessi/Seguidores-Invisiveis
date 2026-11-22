@@ -92,8 +92,23 @@ namespace
         auto* dono = comandante.get();
         auto* player = RE::PlayerCharacter::GetSingleton();
 
-        return dono && dono != actor &&
-            (dono == player || IsFollower(dono));
+        const auto aliado = [&](RE::Actor* candidato) {
+            return candidato && candidato != actor &&
+                   (candidato == player || IsFollower(candidato));
+        };
+        if (aliado(dono)) {
+            return true;
+        }
+
+        // API introduzida na CommonLibSSE-NG 7.5.0. O wrapper atual
+        // nao possui relocation especifica para Skyrim VR.
+        if (!REL::Module::IsVR()) {
+            RE::NiPointer<RE::Actor> controlador;
+            if (actor->GetControllingActor(controlador) && aliado(controlador.get())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     bool IsAliado(RE::Actor* actor)
@@ -556,6 +571,7 @@ namespace
 SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* skse)
 {
     SKSE::Init(skse);
+    IAFT::RegistrarSerializacaoAV();
 
     IniciarLog();
 
