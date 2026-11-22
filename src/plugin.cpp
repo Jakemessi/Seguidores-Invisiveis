@@ -5,6 +5,7 @@
 
 #include <algorithm>
 
+// Guarda o estado do plugin e as funcoes usadas somente neste arquivo.
 namespace
 {
     // Estado do plugin
@@ -26,20 +27,24 @@ namespace
     // Ator individual, nunca o ActorBase compartilhado com NPCs comuns.
     std::vector<RE::ActorHandle> g_aliados;
 
+    // Registra a flag original de cada aliado para restaura-la depois.
     struct AliadoFlagStealth
     {
         RE::ActorHandle handle;
         bool jaNaoApareciaNoStealthMeter = false;
     };
 
+    // Mantem os aliados cuja flag de furtividade foi acompanhada.
     std::vector<AliadoFlagStealth> g_flagsStealth;
 
+    // Obtem um nome seguro para mostrar nas mensagens do log.
     std::string GetActorDisplayName(RE::Actor* actor)
     {
         if (!actor) {
             return VaiBrasa() ? "Ator desconhecido" : "Unknown actor";
         }
 
+        // Se o ator nao tiver nome, usa um texto padrao no idioma escolhido.
         const char* name = actor->GetName();
 
         if (!name || name[0] == '\0') {
@@ -54,6 +59,7 @@ namespace
     // Verificar se o jogador está invisivel
     // ------------------------------------------------------------
 
+    // Detecta se o jogador possui um efeito magico de invisibilidade ativo.
     bool JogadorEstaInvisivel()
     {
         auto* player = RE::PlayerCharacter::GetSingleton();
@@ -62,6 +68,7 @@ namespace
             return false;
         }
 
+        // Consulta a lista de efeitos magicos do jogador.
         auto* magicTarget = player->AsMagicTarget();
 
         return magicTarget &&
@@ -74,6 +81,7 @@ namespace
     // Busca de seguidores
     // ------------------------------------------------------------
 
+    // Considera seguidor qualquer companheiro do jogador, exceto o proprio jogador.
     bool IsFollower(RE::Actor* actor)
     {
         auto* player = RE::PlayerCharacter::GetSingleton();
@@ -82,20 +90,24 @@ namespace
 
     // Invocações, comandados e reanimados pertencentes ao jogador ou a seguidores.
     // Um NPC amigável sem essa relação não entra no filtro.
+    // Aceita invocacoes, comandados e reanimados controlados pelo grupo do jogador.
     bool IsInvocacaoAliada(RE::Actor* actor)
     {
         if (!actor || (!actor->IsSummoned() && !actor->IsCommandedActor())) {
             return false;
         }
 
+        // Primeiro verifica quem esta comandando diretamente a criatura.
         auto comandante = actor->GetCommandingActor();
         auto* dono = comandante.get();
         auto* player = RE::PlayerCharacter::GetSingleton();
 
+        // O controlador precisa ser o jogador ou um de seus seguidores.
         const auto aliado = [&](RE::Actor* candidato) {
             return candidato && candidato != actor &&
                    (candidato == player || IsFollower(candidato));
         };
+        // Um comandante aliado ja confirma que a invocacao pertence ao grupo.
         if (aliado(dono)) {
             return true;
         }
@@ -111,11 +123,13 @@ namespace
         return false;
     }
 
+    // Une os filtros de seguidores comuns e invocacoes aliadas.
     bool IsAliado(RE::Actor* actor)
     {
         return IsFollower(actor) || IsInvocacaoAliada(actor);
     }
 
+    // Executa uma acao para cada aliado ativo na lista de atores do jogo.
     void ForEachAliado(const std::function<void(RE::Actor*, const RE::ActorHandle&)>& callback)
     {
         auto* processLists = RE::ProcessLists::GetSingleton();
@@ -123,6 +137,7 @@ namespace
             return;
         }
 
+        // Percorre os atores carregados e ignora referencias indisponiveis.
         for (const auto& handle : processLists->highActorHandles) {
             auto actorPtr = handle.get();
             if (!actorPtr) {
@@ -130,6 +145,7 @@ namespace
             }
 
             auto* actor = actorPtr.get();
+            // So executa a acao para quem pertence ao grupo do jogador.
             if (IsAliado(actor)) {
                 callback(actor, handle);
             }
@@ -141,24 +157,28 @@ namespace
     // Aplicação e remoção dos efeitos
     // ------------------------------------------------------------
     // Métodos de aplicação e remoção de AVs Temporários
+    // Aplica o bonus temporario de Sneak e o modificador configurado de invisibilidade.
     bool AplicarEfeitos(RE::Actor* actor)
     {
         if (!actor) {
             return false;
         }
 
+        // Consulta a interface de Actor Values; sem ela nao modifica o ator.
         auto* actorValueOwner = actor->AsActorValueOwner();
 
         if (!actorValueOwner) {
             return false;
         }
 
+        // Soma o bonus configurado ao Sneak temporario do aliado.
         actorValueOwner->ModActorValue(
             g_modificadorActorValue,
             RE::ActorValue::kSneak,
             g_sneakBoost
         );
 
+        // Aplica o valor de invisibilidade configurado (atualmente zero).
         actorValueOwner->ModActorValue(
             g_modificadorActorValue,
             RE::ActorValue::kInvisibility,
@@ -168,6 +188,7 @@ namespace
         return true;
     }
 
+    // Compensa os bonus temporarios que foram aplicados ao aliado.
     bool RemoverEfeitos(RE::Actor* actor)
     {
         if (!actor) {
@@ -180,12 +201,14 @@ namespace
             return false;
         }
 
+        // Subtrai o mesmo bonus de Sneak para recuperar o valor anterior.
         actorValueOwner->ModActorValue(
             g_modificadorActorValue,
             RE::ActorValue::kSneak,
             -g_sneakBoost
         );
 
+        // Compensa o modificador de invisibilidade aplicado anteriormente.
         actorValueOwner->ModActorValue(
             g_modificadorActorValue,
             RE::ActorValue::kInvisibility,
@@ -195,11 +218,13 @@ namespace
         return true;
     }
 
+    // Evita aplicar duas vezes o bonus a um aliado ja acompanhado.
     bool AliadoJaRegistrado(const RE::ActorHandle& handle)
     {
         return std::find(g_aliados.begin(), g_aliados.end(), handle) != g_aliados.end();
     }
 
+    // Verifica se a flag de furtividade deste aliado ja foi salva.
     bool FlagJaRegistrada(const RE::ActorHandle& handle)
     {
         return std::find_if(
@@ -210,6 +235,7 @@ namespace
         ) != g_flagsStealth.end();
     }
 
+    // Oculta o aliado do indicador de deteccao sem mexer em outros NPCs.
     void AplicarFlagNaoAfetaStealth(RE::Actor* actor, const RE::ActorHandle& handle)
     {
         if (!actor || FlagJaRegistrada(handle)) {
@@ -222,6 +248,7 @@ namespace
         const bool jaNaoAparecia = flags.all(flag);
         g_flagsStealth.push_back({ handle, jaNaoAparecia });
 
+        // So ativa a flag quando ela nao estava ativada antes.
         if (!jaNaoAparecia) {
             flags.set(flag);
         }
@@ -231,6 +258,7 @@ namespace
                 nome + " no longer affects the stealth meter");
     }
 
+    // Atualiza as flags de furtividade quando aliados entram ou saem do grupo.
     void SincronizarFlagsInvisibilidade()
     {
         constexpr auto flag = RE::Actor::BOOL_FLAGS::kDoNotShowOnStealthMeter;
@@ -239,6 +267,7 @@ namespace
         for (auto it = g_flagsStealth.begin(); it != g_flagsStealth.end();) {
             auto actorPtr = it->handle.get();
             if (actorPtr && !IsAliado(actorPtr.get())) {
+                // Restaura a flag anterior quando um ator deixa de ser aliado.
                 if (!it->jaNaoApareciaNoStealthMeter) {
                     actorPtr->GetActorRuntimeData().boolFlags.reset(flag);
                 }
@@ -248,11 +277,13 @@ namespace
             }
         }
 
+        // Aplica a flag aos aliados que surgiram depois da ultima verificacao.
         ForEachAliado([](RE::Actor* actor, const RE::ActorHandle& handle) {
             AplicarFlagNaoAfetaStealth(actor, handle);
         });
     }
 
+    // Desfaz as flags de furtividade aplicadas enquanto havia invisibilidade.
     void RemoverFlagsInvisibilidade()
     {
         if (!g_flagInvisibilidadeAtiva && g_flagsStealth.empty()) {
@@ -260,6 +291,7 @@ namespace
         }
 
         constexpr auto flag = RE::Actor::BOOL_FLAGS::kDoNotShowOnStealthMeter;
+        // Restaura somente as flags que estavam desligadas originalmente.
         for (const auto& registro : g_flagsStealth) {
             auto actorPtr = registro.handle.get();
             if (actorPtr && !registro.jaNaoApareciaNoStealthMeter) {
@@ -267,6 +299,7 @@ namespace
             }
         }
 
+        // Esquece os registros depois de restaurar as flags.
         g_flagsStealth.clear();
         g_flagInvisibilidadeAtiva = false;
 
@@ -274,9 +307,11 @@ namespace
                 "Ally stealth flags restored");
     }
 
+    // Liga as flags quando ha invisibilidade e as remove ao terminar o efeito.
     void AtualizarFlagsInvisibilidade(bool estaInvisivel)
     {
         if (estaInvisivel) {
+            // Na primeira ativacao, inicia o acompanhamento das flags.
             if (!g_flagInvisibilidadeAtiva) {
                 g_flagInvisibilidadeAtiva = true;
                 g_flagsStealth.clear();
@@ -290,16 +325,19 @@ namespace
             SincronizarFlagsInvisibilidade();
         }
         else if (g_flagInvisibilidadeAtiva) {
+            // Ao acabar a invisibilidade, devolve as flags originais.
             RemoverFlagsInvisibilidade();
         }
     }
 
+    // Retira os bonus de ex-aliados e aplica bonus a novos aliados.
     void SincronizarSeguidores()
     {
         // Descarta comandados que deixaram de pertencer ao jogador/grupo.
         for (auto it = g_aliados.begin(); it != g_aliados.end();) {
             auto actorPtr = it->get();
             if (actorPtr && !IsAliado(actorPtr.get())) {
+                // Um ator que saiu do grupo perde o modificador temporario.
                 RemoverEfeitos(actorPtr.get());
                 it = g_aliados.erase(it);
             } else {
@@ -307,6 +345,7 @@ namespace
             }
         }
 
+        // Aplica o bonus somente a aliados ainda nao registrados.
         ForEachAliado([](RE::Actor* actor, const RE::ActorHandle& handle) {
             if (AliadoJaRegistrado(handle) || !AplicarEfeitos(actor)) {
                 return;
@@ -319,18 +358,21 @@ namespace
         });
     }
 
+    // Inicia os efeitos quando o jogador entra em furtividade ou invisibilidade.
     void AtivarEfeitosSeguidores()
     {
         if (g_stealthAtivado) {
             return;
         }
 
+        // Reinicia a lista antes de localizar e modificar os aliados ativos.
         g_stealthAtivado = true;
         g_aliados.clear();
 
         SincronizarSeguidores();
     }
 
+    // Remove os bonus temporarios ao sair da furtividade.
     void DesativarEfeitosSeguidores()
     {
         if (!g_stealthAtivado) {
@@ -339,6 +381,7 @@ namespace
 
         g_stealthAtivado = false;
 
+        // Recupera cada aliado ainda carregado para retirar os efeitos.
         for (const auto& handle : g_aliados) {
             auto actorPtr = handle.get();
 
@@ -364,6 +407,7 @@ namespace
             );
         }
 
+        // Limpa o acompanhamento depois de tentar remover todos os bonus.
         g_aliados.clear();
     }
 
@@ -378,17 +422,20 @@ namespace
         }
     }
 
+    // Recebe avisos quando atores carregam ou efeitos magicos sao aplicados.
     class AllyEventSink :
         public RE::BSTEventSink<RE::TESObjectLoadedEvent>,
         public RE::BSTEventSink<RE::TESMagicEffectApplyEvent>
     {
     public:
+        // Usa uma unica instancia para receber todos os eventos de aliados.
         static AllyEventSink* GetSingleton()
         {
             static AllyEventSink singleton;
             return std::addressof(singleton);
         }
 
+        // Reage a um ator carregado enquanto os efeitos estao ativos.
         RE::BSEventNotifyControl ProcessEvent(
             const RE::TESObjectLoadedEvent* event,
             RE::BSTEventSource<RE::TESObjectLoadedEvent>*) override
@@ -398,6 +445,7 @@ namespace
                 return RE::BSEventNotifyControl::kContinue;
             }
 
+            // Se o ator carregado for aliado, atualiza os bonus e o combate.
             auto* actor = RE::TESForm::LookupByID<RE::Actor>(event->formID);
             if (IsAliado(actor)) {
                 SincronizarAliadosAtivos();
@@ -406,6 +454,7 @@ namespace
             return RE::BSEventNotifyControl::kContinue;
         }
 
+        // Reage a novos efeitos magicos que possam mudar o grupo de aliados.
         RE::BSEventNotifyControl ProcessEvent(
             const RE::TESMagicEffectApplyEvent* event,
             RE::BSTEventSource<RE::TESMagicEffectApplyEvent>*) override
@@ -414,10 +463,12 @@ namespace
                 return RE::BSEventNotifyControl::kContinue;
             }
 
+            // Identifica quem lancou o efeito e quem recebeu a magia.
             auto* caster = event->caster ? event->caster->As<RE::Actor>() : nullptr;
             auto* target = event->target ? event->target->As<RE::Actor>() : nullptr;
             auto* player = RE::PlayerCharacter::GetSingleton();
 
+            // Atualiza os aliados se a magia envolver o jogador ou seu grupo.
             if (IsAliado(target) || caster == player || IsFollower(caster)) {
                 SincronizarAliadosAtivos();
                 IAFT::AtualizarControleCombate();
@@ -427,6 +478,7 @@ namespace
         }
     };
 
+    // Registra os eventos de carregamento de atores e aplicacao de magia.
     void RegisterAllyEvents()
     {
         auto* sources = RE::ScriptEventSourceHolder::GetSingleton();
@@ -435,8 +487,10 @@ namespace
             return;
         }
 
+        // Remove registros antigos para nao receber eventos duplicados.
         sources->RemoveEventSink<RE::TESObjectLoadedEvent>(AllyEventSink::GetSingleton());
         sources->RemoveEventSink<RE::TESMagicEffectApplyEvent>(AllyEventSink::GetSingleton());
+        // Adiciona os ouvintes atualizados ao jogo.
         sources->AddEventSink<RE::TESObjectLoadedEvent>(AllyEventSink::GetSingleton());
         sources->AddEventSink<RE::TESMagicEffectApplyEvent>(AllyEventSink::GetSingleton());
     }
@@ -444,16 +498,19 @@ namespace
     // ------------------------------------------------------------
     // Eventos de animação
     // ------------------------------------------------------------
+    // Acompanha as animacoes do jogador para detectar mudancas de furtividade.
     class AnimationEventSink :
         public RE::BSTEventSink<RE::BSAnimationGraphEvent>
     {
     public:
+        // Reutiliza o mesmo ouvinte dos eventos de animacao.
         static AnimationEventSink* GetSingleton()
         {
             static AnimationEventSink singleton;
             return std::addressof(singleton);
         }
         
+        // Recebe o evento e ignora animacoes que nao sao do jogador.
         RE::BSEventNotifyControl ProcessEvent(
             const RE::BSAnimationGraphEvent* event,
             RE::BSTEventSource<RE::BSAnimationGraphEvent>*)
@@ -469,6 +526,7 @@ namespace
                 return RE::BSEventNotifyControl::kContinue;
             }
 
+            // Exibe o nome do evento somente quando o modo de debug esta ligado.
             if constexpr (p_debug) {
                 const std::string tag = event->tag.c_str();
 
@@ -478,13 +536,16 @@ namespace
                 );
             }
 
+            // Consulta agachamento e invisibilidade para definir o estado de stealth.
             const bool estaAgachado = player->IsSneaking();
             const bool estaInvisivel = JogadorEstaInvisivel();
 
+            // Atualiza separadamente a flag que afeta o indicador de deteccao.
             AtualizarFlagsInvisibilidade(estaInvisivel);
 
             const bool EstaEmStealth = estaAgachado || estaInvisivel;
 
+            // Registra o estado completo apenas para diagnosticos de debug.
             if constexpr (p_debug) {
                 LogInfo(
                     "Estado do player: IsSneaking=" +
@@ -507,9 +568,11 @@ namespace
                 );
             }
 
+            // Com stealth ativo, inicia ou atualiza os efeitos dos aliados.
             if(EstaEmStealth) {
                 if (!g_stealthAtivado) {
 
+                    // Registra se o gatilho foi agachamento, invisibilidade ou ambos.
                     if (estaAgachado && estaInvisivel) {
                         LogInfo(
                             "Sneak e invisibilidade detectados",
@@ -536,6 +599,7 @@ namespace
                 }
             }
             else if (g_stealthAtivado) {
+                // Fora de stealth, retira os modificadores temporarios dos aliados.
                 LogInfo(
                     "Saindo de stealth",
                     "Exiting stealth"
@@ -548,6 +612,7 @@ namespace
         }
     };
 
+    // Registra novamente o ouvinte de animacoes do jogador atual.
     void RegisterAnimationEvents()
     {
         auto* player = RE::PlayerCharacter::GetSingleton();
@@ -557,6 +622,7 @@ namespace
             return;
         }
 
+        // Remove a inscricao antiga e adiciona a instancia atual uma unica vez.
         player->RemoveAnimationGraphEventSink(AnimationEventSink::GetSingleton());
         player->AddAnimationGraphEventSink(AnimationEventSink::GetSingleton());
 
@@ -570,9 +636,11 @@ namespace
 // Entrada carregada pelo SKSE; metadados do plugin são gerados pelo CommonLibSSE-NG.
 SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* skse)
 {
+    // Inicializa o SKSE e prepara os callbacks de salvamento dos Actor Values.
     SKSE::Init(skse);
     IAFT::RegistrarSerializacaoAV();
 
+    // Inicializa o log e anota a versao do Skyrim em execucao.
     IniciarLog();
 
     LogInfo(
@@ -580,12 +648,14 @@ SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* skse)
         "Skyrim version: " + skse->RuntimeVersion().string()
     );
 
+    // Obtem o sistema de mensagens usado para acompanhar o ciclo do jogo.
     auto* messaging = SKSE::GetMessagingInterface();
 
     if (!messaging) {
         return false;
     }
 
+    // Reage ao carregamento de dados, inicio de jogo e troca de save.
     messaging->RegisterListener("SKSE", [](SKSE::MessagingInterface::Message* message)
     {
         if (!message) {
@@ -593,6 +663,7 @@ SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* skse)
         }
 
         switch (message->type) {
+        // Registra que o jogo terminou de carregar os dados principais.
         case SKSE::MessagingInterface::kDataLoaded:
             LogInfo(
                 "Plugin carregado no menu principal",
@@ -600,6 +671,7 @@ SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* skse)
             );
             break;
 
+        // Em novo jogo ou save carregado, registra eventos e inicia o combate.
         case SKSE::MessagingInterface::kNewGame:
         case SKSE::MessagingInterface::kPostLoadGame:
             LogInfo(
@@ -626,6 +698,7 @@ SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* skse)
 
             break;
 
+        // Antes de trocar de save, para o monitor e desfaz os efeitos ativos.
         case SKSE::MessagingInterface::kPreLoadGame:
             IAFT::PararControleCombate();
             RemoverFlagsInvisibilidade();
