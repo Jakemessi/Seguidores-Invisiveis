@@ -41,6 +41,7 @@ namespace IAFT
 
         std::vector<Bloqueio> g_bloqueios;
         std::vector<RegistroAVPersistido> g_avPendentes;
+        std::vector<RE::ActorHandle> g_inimigosConfronto;
         std::function<bool(RE::Actor*)> g_eInvocacaoAliada;
         bool g_combateLiberado = false;
 
@@ -311,6 +312,55 @@ namespace IAFT
             return false;
         }
 
+        bool GrupoTemAlvoAliado(RE::CombatGroup* grupo, RE::Actor* player)
+        {
+            if (!grupo) {
+                return false;
+            }
+            std::vector<RE::ActorHandle> alvos;
+            {
+                // Copia os handles sob o lock; as consultas de IA ficam fora dele.
+                RE::BSReadLockGuard trava(grupo->lock);
+                alvos.reserve(grupo->targets.size());
+                for (const auto& alvo : grupo->targets) {
+                    alvos.push_back(alvo.targetHandle);
+                }
+            }
+            for (const auto& handle : alvos) {
+                const auto alvoAtor = handle.get();
+                if (alvoAtor &&
+                    (alvoAtor.get() == player || alvoAtor->IsPlayerTeammate() ||
+                     EInvocacaoAliada(alvoAtor.get()))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool InimigoJaRelacionado(const RE::ActorHandle& handle)
+        {
+            return std::find(g_inimigosConfronto.begin(),
+                             g_inimigosConfronto.end(), handle) != g_inimigosConfronto.end();
+        }
+
+        void RegistrarInimigosDoConfronto(RE::Actor* player)
+        {
+            auto* listas = RE::ProcessLists::GetSingleton();
+            if (!listas || !player) {
+                return;
+            }
+            for (const auto& handle : listas->highActorHandles) {
+                const auto ator = handle.get();
+                if (!ator || !ator->IsInCombat() || !EInimigoValido(ator.get(), player) ||
+                    InimigoJaRelacionado(handle)) {
+                    continue;
+                }
+                if (GrupoTemAlvoAliado(ator->GetCombatGroup(), player)) {
+                    g_inimigosConfronto.push_back(handle);
+                }
+            }
+        }
+
         bool HaInimigosCombatendo(RE::Actor* player)
         {
             auto* listas = RE::ProcessLists::GetSingleton();
@@ -318,15 +368,23 @@ namespace IAFT
                 return false;
             }
 
-            // Mantem a liberacao enquanto houver hostis proximos em combate,
-            // mesmo quando o jogador ja saiu de combate ou voltou a se ocultar.
+            // Prioriza integrantes identificados do confronto, nao lutas
+            // independentes entre hostis no mesmo high-actor list.
+            bool haCombateHostilProximo = false;
             for (const auto& handle : listas->highActorHandles) {
-                auto ator = handle.get();
-                if (ator && EInimigoValido(ator.get(), player) && ator->IsInCombat()) {
+                const auto ator = handle.get();
+                if (!ator || !ator->IsInCombat() || !EInimigoValido(ator.get(), player)) {
+                    continue;
+                }
+                haCombateHostilProximo = true;
+                if (InimigoJaRelacionado(handle) ||
+                    GrupoTemAlvoAliado(ator->GetCombatGroup(), player)) {
                     return true;
                 }
             }
-            return false;
+            // Compatibilidade: se o motor nao forneceu grupos/alvos,
+            // conserva o criterio anterior em vez de bloquear precocemente.
+            return g_inimigosConfronto.empty() && haCombateHostilProximo;
         }
         // Uma tarefa por vez, tanto no evento quanto no monitor periodico.
         void AgendarAtualizacao()
@@ -366,9 +424,14 @@ namespace IAFT
         // So a primeira deteccao ou a entrada em combate libera os ataques.
         // Depois, o combate permanece liberado ate o fim do confronto.
         const bool gatilho = player->IsInCombat() || JogadorDetectadoPorInimigo(player);
+        if (g_combateLiberado) {
+            RegistrarInimigosDoConfronto(player);
+        }
 
         if (gatilho && !g_combateLiberado) {
+            g_inimigosConfronto.clear();
             g_combateLiberado = true;
+            RegistrarInimigosDoConfronto(player);
             RestaurarTodos();
             LogInfo("Combate liberado para invocacoes aliadas",
                     "Combat enabled for allied summons");
@@ -401,6 +464,7 @@ namespace IAFT
         g_tarefaPendente.store(false);
         RestaurarTodos();
         g_combateLiberado = false;
+        g_inimigosConfronto.clear();
         g_eInvocacaoAliada = {};
     }
 
