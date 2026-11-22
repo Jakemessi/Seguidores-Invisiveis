@@ -14,6 +14,19 @@ namespace IAFT
         constexpr auto kIntervaloMonitor = std::chrono::milliseconds(400);
         constexpr auto kAtaqueDesabilitado = RE::Actor::BOOL_FLAGS::kAttackingDisabled;
         constexpr auto kConjuracaoDesabilitada = RE::Actor::BOOL_FLAGS::kCastingDisabled;
+        constexpr std::uint32_t kIdentificadorSerializacao = 0x54464149; // IAFT
+        constexpr std::uint32_t kTipoRegistroAV = 0x56414941;           // AIAV
+        constexpr std::uint32_t kVersaoRegistroAV = 1;
+        constexpr std::uint32_t kAVAlteradoAggression = 1;
+        constexpr std::uint32_t kAVAlteradoAssistance = 2;
+
+        struct RegistroAVPersistido
+        {
+            std::uint32_t formID = 0;
+            float agressividadeOriginal = 0.0f;
+            float assistenciaOriginal = 0.0f;
+            std::uint32_t flags = 0;
+        };
 
         struct Bloqueio
         {
@@ -27,6 +40,7 @@ namespace IAFT
         };
 
         std::vector<Bloqueio> g_bloqueios;
+        std::vector<RegistroAVPersistido> g_avPendentes;
         std::function<bool(RE::Actor*)> g_eInvocacaoAliada;
         bool g_combateLiberado = false;
 
@@ -36,6 +50,116 @@ namespace IAFT
         std::atomic<bool> g_tarefaPendente{ false };
         // Declarado por ultimo para ser destruido primeiro no encerramento.
         std::jthread g_monitor;
+
+        void SalvarAVs(SKSE::SerializationInterface* serializacao)
+        {
+            std::vector<RegistroAVPersistido> registros = g_avPendentes;
+            for (const auto& bloqueio : g_bloqueios) {
+                const auto ator = bloqueio.handle.get();
+                if (!ator || (!bloqueio.agressividadeAlterada && !bloqueio.assistenciaAlterada)) {
+                    continue;
+                }
+
+                RegistroAVPersistido registro{
+                    ator->GetFormID(),
+                    bloqueio.agressividadeOriginal,
+                    bloqueio.assistenciaOriginal,
+                    (bloqueio.agressividadeAlterada ? kAVAlteradoAggression : 0u) |
+                        (bloqueio.assistenciaAlterada ? kAVAlteradoAssistance : 0u)
+                };
+                if (registro.formID == 0) {
+                    continue;
+                }
+
+                auto it = std::find_if(registros.begin(), registros.end(),
+                    [&](const RegistroAVPersistido& atual) {
+                        return atual.formID == registro.formID;
+                    });
+                if (it != registros.end()) {
+                    *it = registro;
+                } else {
+                    registros.push_back(registro);
+                }
+            }
+
+            if (registros.empty() || !serializacao->OpenRecord(kTipoRegistroAV, kVersaoRegistroAV)) {
+                return;
+            }
+
+            const auto quantidade = static_cast<std::uint32_t>(registros.size());
+            if (!serializacao->WriteRecordData(quantidade)) {
+                return;
+            }
+            for (const auto& registro : registros) {
+                if (!serializacao->WriteRecordData(registro)) {
+                    LogErro("Erro ao serializar AVs das invocacoes",
+                            "Could not serialize allied summon actor values");
+                    break;
+                }
+            }
+        }
+
+        void CarregarAVs(SKSE::SerializationInterface* serializacao)
+        {
+            g_avPendentes.clear();
+            std::uint32_t tipo = 0;
+            std::uint32_t versao = 0;
+            std::uint32_t tamanho = 0;
+            while (serializacao->GetNextRecordInfo(tipo, versao, tamanho)) {
+                if (tipo != kTipoRegistroAV || versao != kVersaoRegistroAV ||
+                    tamanho < sizeof(std::uint32_t)) {
+                    continue;
+                }
+
+                std::uint32_t quantidade = 0;
+                if (serializacao->ReadRecordData(quantidade) != sizeof(quantidade) ||
+                    quantidade > 4096 ||
+                    quantidade > (tamanho - sizeof(quantidade)) / sizeof(RegistroAVPersistido)) {
+                    LogErro("Registro invalido de AVs no co-save",
+                            "Invalid actor-value record in SKSE co-save");
+                    continue;
+                }
+
+                for (std::uint32_t i = 0; i < quantidade; ++i) {
+                    RegistroAVPersistido registro;
+                    if (serializacao->ReadRecordData(registro) != sizeof(registro)) {
+                        break;
+                    }
+                    RE::FormID formIDAtual = 0;
+                    if (serializacao->ResolveFormID(registro.formID, formIDAtual)) {
+                        registro.formID = formIDAtual;
+                        g_avPendentes.push_back(registro);
+                    }
+                }
+            }
+        }
+
+        void ReverterAVs(SKSE::SerializationInterface*)
+        {
+            g_avPendentes.clear();
+        }
+
+        void RestaurarAVsPendentes()
+        {
+            for (auto it = g_avPendentes.begin(); it != g_avPendentes.end();) {
+                auto* ator = RE::TESForm::LookupByID<RE::Actor>(it->formID);
+                if (!ator) {
+                    ++it; // Uma invocacao ainda pode nao ter carregado.
+                    continue;
+                }
+
+                // Nunca sobrescreve a modificacao de outro mod.
+                if ((it->flags & kAVAlteradoAggression) &&
+                    ator->GetActorValue(RE::ActorValue::kAggression) == 0.0f) {
+                    ator->SetActorValue(RE::ActorValue::kAggression, it->agressividadeOriginal);
+                }
+                if ((it->flags & kAVAlteradoAssistance) &&
+                    ator->GetActorValue(RE::ActorValue::kAssistance) == 0.0f) {
+                    ator->SetActorValue(RE::ActorValue::kAssistance, it->assistenciaOriginal);
+                }
+                it = g_avPendentes.erase(it);
+            }
+        }
 
         bool EInvocacaoAliada(RE::Actor* actor)
         {
@@ -189,6 +313,8 @@ namespace IAFT
 
     void AtualizarControleCombate()
     {
+        // Primeiro recupera valores salvos antes de reaplicar qualquer bloqueio.
+        RestaurarAVsPendentes();
         if (!g_eInvocacaoAliada) {
             return;
         }
@@ -233,6 +359,20 @@ namespace IAFT
         RestaurarTodos();
         g_combateLiberado = false;
         g_eInvocacaoAliada = {};
+    }
+
+    void RegistrarSerializacaoAV()
+    {
+        auto* serializacao = SKSE::GetSerializationInterface();
+        if (!serializacao) {
+            LogErro("Serializacao SKSE indisponivel para os AVs",
+                    "SKSE serialization unavailable for actor values");
+            return;
+        }
+        serializacao->SetUniqueID(kIdentificadorSerializacao);
+        serializacao->SetSaveCallback(SalvarAVs);
+        serializacao->SetLoadCallback(CarregarAVs);
+        serializacao->SetRevertCallback(ReverterAVs);
     }
 
     void IniciarControleCombate(std::function<bool(RE::Actor*)> a_eInvocacaoAliada)

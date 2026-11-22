@@ -556,6 +556,7 @@ namespace
 SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* skse)
 {
     SKSE::Init(skse);
+    IAFT::RegistrarSerializacaoAV();
 
     IniciarLog();
 
