@@ -48,6 +48,25 @@ namespace IAFT
         // acontecem nas tarefas da thread principal do Skyrim.
         std::atomic<std::uint64_t> g_geracao{ 0 };
         std::atomic<bool> g_tarefaPendente{ false };
+        RE::ScriptEventSourceHolder* g_fonteEventosCombate = nullptr;
+
+        void AgendarAtualizacao();
+
+        class EventoCombate final : public RE::BSTEventSink<RE::TESCombatEvent>
+        {
+        public:
+            RE::BSEventNotifyControl ProcessEvent(
+                const RE::TESCombatEvent* evento,
+                RE::BSTEventSource<RE::TESCombatEvent>*) override
+            {
+                if (evento) {
+                    AgendarAtualizacao();
+                }
+                return RE::BSEventNotifyControl::kContinue;
+            }
+        };
+
+        EventoCombate g_sinkCombate;
         // Declarado por ultimo para ser destruido primeiro no encerramento.
         std::jthread g_monitor;
 
@@ -309,6 +328,26 @@ namespace IAFT
             }
             return false;
         }
+        // Uma tarefa por vez, tanto no evento quanto no monitor periodico.
+        void AgendarAtualizacao()
+        {
+            if (g_tarefaPendente.exchange(true)) {
+                return;
+            }
+            const auto sessao = g_geracao.load();
+            auto* tarefas = SKSE::GetTaskInterface();
+            if (!tarefas) {
+                g_tarefaPendente.store(false);
+                return;
+            }
+            tarefas->AddTask([sessao] {
+                if (sessao != g_geracao.load()) {
+                    return;
+                }
+                g_tarefaPendente.store(false);
+                AtualizarControleCombate();
+            });
+        }
     }
 
     void AtualizarControleCombate()
@@ -350,6 +389,10 @@ namespace IAFT
     {
         // Invalida as tarefas pendentes de uma partida anterior.
         ++g_geracao;
+        if (g_fonteEventosCombate) {
+            g_fonteEventosCombate->RemoveEventSink<RE::TESCombatEvent>(&g_sinkCombate);
+            g_fonteEventosCombate = nullptr;
+        }
         if (g_monitor.joinable()) {
             g_monitor.request_stop();
             g_monitor.join();
@@ -379,6 +422,10 @@ namespace IAFT
     {
         PararControleCombate();
         g_eInvocacaoAliada = std::move(a_eInvocacaoAliada);
+        g_fonteEventosCombate = RE::ScriptEventSourceHolder::GetSingleton();
+        if (g_fonteEventosCombate) {
+            g_fonteEventosCombate->AddEventSink<RE::TESCombatEvent>(&g_sinkCombate);
+        }
 
         const auto sessao = ++g_geracao;
         AtualizarControleCombate();
@@ -390,22 +437,7 @@ namespace IAFT
                     break;
                 }
 
-                if (g_tarefaPendente.exchange(true)) {
-                    continue;
-                }
-
-                auto* tarefas = SKSE::GetTaskInterface();
-                if (!tarefas) {
-                    g_tarefaPendente.store(false);
-                    continue;
-                }
-
-                tarefas->AddTask([sessao] {
-                    g_tarefaPendente.store(false);
-                    if (sessao == g_geracao.load()) {
-                        AtualizarControleCombate();
-                    }
-                });
+                AgendarAtualizacao();
             }
         });
     }
